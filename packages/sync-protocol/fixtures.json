@@ -1,0 +1,103 @@
+{
+  "grant": {
+    "workspaceId": "workspace-synthetic",
+    "accountIds": [
+      "account-synthetic"
+    ],
+    "projectIds": [
+      "project-synthetic"
+    ],
+    "from": "2030-01-01T00:00:00Z",
+    "to": "2030-02-01T00:00:00Z",
+    "shareQuota": true,
+    "retentionDays": 90
+  },
+  "events": [
+    {
+      "seq": 1,
+      "eventId": "usage-synthetic",
+      "grantId": "grant-synthetic",
+      "provider": "codex",
+      "sourceId": "source-synthetic",
+      "environmentId": "environment-synthetic",
+      "sessionId": "session-synthetic",
+      "turnId": "turn-synthetic",
+      "agentId": null,
+      "parentId": null,
+      "relation": null,
+      "accountId": "account-synthetic",
+      "projectId": "project-synthetic",
+      "projectAlias": "项目 A",
+      "kind": "usage",
+      "occurredAt": "2030-01-02T10:00:00Z",
+      "observedAt": "2030-01-02T10:00:00Z",
+      "model": "model-synthetic",
+      "state": null,
+      "evidence": "confirmed",
+      "usage": {
+        "input": 100,
+        "cached": 20,
+        "output": 40,
+        "reasoning": 10
+      }
+    },
+    {
+      "seq": 2,
+      "eventId": "correction-synthetic",
+      "grantId": "grant-synthetic",
+      "provider": "codex",
+      "sourceId": "source-synthetic",
+      "environmentId": "environment-synthetic",
+      "sessionId": "session-synthetic",
+      "turnId": "turn-synthetic",
+      "agentId": null,
+      "parentId": null,
+      "relation": null,
+      "accountId": "account-synthetic",
+      "projectId": "project-synthetic",
+      "projectAlias": "项目 A",
+      "kind": "usage_correction",
+      "occurredAt": "2030-01-02T10:00:00Z",
+      "observedAt": "2030-01-02T10:00:00Z",
+      "model": "model-synthetic",
+      "state": null,
+      "evidence": "confirmed",
+      "usage": {
+        "input": 80,
+        "cached": 10,
+        "output": 30,
+        "reasoning": 5
+      },
+      "correctsEventId": "usage-synthetic",
+      "expectedRevision": 0,
+      "revision": 1
+    },
+    {
+      "seq": 3,
+      "eventId": "quota-synthetic",
+      "grantId": "grant-synthetic",
+      "provider": "codex",
+      "sourceId": "source-synthetic",
+      "environmentId": "environment-synthetic",
+      "sessionId": null,
+      "turnId": null,
+      "agentId": null,
+      "parentId": null,
+      "relation": null,
+      "accountId": "account-synthetic",
+      "projectId": null,
+      "kind": "quota",
+      "occurredAt": "2030-01-02T10:00:00Z",
+      "observedAt": "2030-01-02T10:00:00Z",
+      "model": null,
+      "state": null,
+      "evidence": "unknown",
+      "quota": {
+        "pool": "subscription",
+        "window": "weekly",
+        "remainingPercent": null,
+        "resetsAt": null
+      }
+    }
+  ]
+}

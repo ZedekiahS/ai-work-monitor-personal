@@ -1,0 +1,105 @@
+{
+  "name": "ai-work-monitor",
+  "version": "0.2.0-candidate.5",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "tsx server/index.ts",
+    "ui:dev": "vite --config ui/vite.config.ts",
+    "build": "npm run build:protocol && node scripts/clean-client-dist.mjs && tsc -p tsconfig.json && vite build --config ui/vite.config.ts",
+    "start": "node dist/server/index.js",
+    "diagnose": "tsx scripts/diagnose.ts",
+    "test": "tsx --test tests/*.test.ts ui/observation.test.ts",
+    "benchmark": "tsx scripts/benchmark.ts",
+    "desktop": "electron desktop/main.cjs",
+    "package:win": "npm run build && node scripts/prepare-runtime.mjs && electron-builder --win nsis",
+    "typecheck:ui": "tsc -p ui/tsconfig.json",
+    "test:local-http": "tsx --test tests/local-http.integration.ts tests/local-export.integration.ts",
+    "repair:usage": "tsx scripts/recompute-derived.ts",
+    "demo": "npm run build && tsx scripts/demo.ts",
+    "build:protocol": "npm run build --prefix packages/sync-protocol",
+    "test:personal-sync": "powershell -NoProfile -File packages/sync-service/test-local.ps1",
+    "test:ui": "tsx --test ui/*.test.tsx",
+    "repair:history": "tsx scripts/history-recovery.ts",
+    "desktop:prepare": "install-electron"
+  },
+  "dependencies": {
+    "@ai-work-monitor/sync-protocol": "file:packages/sync-protocol",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/react-test-renderer": "^19.3.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "electron": "45.1.0",
+    "electron-builder": "^26.0.12",
+    "prettier": "3.6.2",
+    "react-test-renderer": "^19.3.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
+  },
+  "main": "desktop/main.cjs",
+  "build": {
+    "appId": "local.ai.work.monitor",
+    "productName": "AI Work Monitor",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/main.cjs",
+      "desktop/assets/**",
+      "dist/core/**",
+      "dist/collector/**",
+      "dist/server/**",
+      "dist/ui/**",
+      "package.json",
+      "THIRD_PARTY_NOTICES.md",
+      "third_party/**",
+      "scripts/hook-receiver.mjs",
+      "dist/scripts/diagnose.js",
+      "dist/scripts/recompute-derived.js",
+      "dist/scripts/history-recovery.js",
+      "LICENSE"
+    ],
+    "extraResources": [
+      {
+        "from": "work/runtime",
+        "to": "runtime"
+      }
+    ],
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "installerIcon": "desktop/assets/icon.ico",
+      "uninstallerIcon": "desktop/assets/icon.ico"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "desktop/assets/icon.ico"
+    },
+    "asar": false,
+    "extraMetadata": {
+      "description": "Local-first AI work usage and agent monitor",
+      "author": "AI Work Monitor contributors"
+    }
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "electron-winstaller@5.4.0": true,
+    "electron@45.1.0": true
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZedekiahS/ai-work-monitor-personal.git"
+  }
+}

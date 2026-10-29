@@ -1,0 +1,380 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Work Monitor protocol v1",
+  "$defs": {
+    "grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+        },
+        "accountIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+          },
+          "minItems": 1,
+          "maxItems": 100
+        },
+        "projectIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+          },
+          "maxItems": 100
+        },
+        "from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "shareQuota": {
+          "type": "boolean"
+        },
+        "retentionDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        }
+      },
+      "required": [
+        "workspaceId",
+        "accountIds",
+        "projectIds",
+        "from",
+        "to",
+        "shareQuota",
+        "retentionDays"
+      ]
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "eventId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+        },
+        "grantId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+        },
+        "provider": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+        },
+        "sourceId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+        },
+        "environmentId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+        },
+        "sessionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turnId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "relation": {
+          "enum": [
+            null,
+            "spawn",
+            "fork"
+          ]
+        },
+        "accountId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+        },
+        "projectId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "session",
+            "session_meta",
+            "turn_started",
+            "turn_completed",
+            "turn_failed",
+            "turn_cancelled",
+            "task_started",
+            "task_start",
+            "task_complete",
+            "task_completed",
+            "task_failed",
+            "task_interrupted",
+            "turn_start",
+            "turn_end",
+            "turn_aborted",
+            "status",
+            "waiting_user",
+            "waiting_approval",
+            "resumed",
+            "agent_started",
+            "agent_stopped",
+            "subagent_start",
+            "subagent_stop",
+            "tool_started",
+            "tool_completed",
+            "tool_failed",
+            "tool_error",
+            "tool_start",
+            "tool_end",
+            "usage",
+            "usage_correction",
+            "token_count",
+            "quota",
+            "heartbeat",
+            "activity",
+            "message"
+          ]
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": [
+            null,
+            "running",
+            "waiting_user",
+            "waiting_approval",
+            "idle",
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown"
+          ]
+        },
+        "evidence": {
+          "enum": [
+            "confirmed",
+            "inferred",
+            "unknown"
+          ]
+        },
+        "projectAlias": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[^\\x00-\\x1f<>\\\\/]+$"
+        },
+        "usage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "input": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "cached": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "reasoning": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "input",
+            "cached",
+            "output",
+            "reasoning"
+          ]
+        },
+        "quota": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pool": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+            },
+            "window": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+            },
+            "remainingPercent": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "resetsAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "pool",
+            "window",
+            "remainingPercent",
+            "resetsAt"
+          ]
+        },
+        "correctsEventId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000000
+        }
+      },
+      "required": [
+        "seq",
+        "eventId",
+        "grantId",
+        "provider",
+        "sourceId",
+        "environmentId",
+        "sessionId",
+        "turnId",
+        "agentId",
+        "parentId",
+        "relation",
+        "accountId",
+        "projectId",
+        "kind",
+        "occurredAt",
+        "observedAt",
+        "model",
+        "state",
+        "evidence"
+      ],
+      "not": {
+        "required": [
+          "usage",
+          "quota"
+        ]
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "protocolVersion": {
+      "const": 1
+    },
+    "batchId": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,200}$"
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/event"
+      },
+      "minItems": 1,
+      "maxItems": 500
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "batchId",
+    "events"
+  ]
+}

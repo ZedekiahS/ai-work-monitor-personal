@@ -1,0 +1,33 @@
+{
+  "name": "@ai-work-monitor/sync-protocol",
+  "version": "0.2.0-candidate.5",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./pagination": {
+      "types": "./dist/pagination.d.ts",
+      "default": "./dist/pagination.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "CONTRACT.md",
+    "schema.json",
+    "fixtures.json",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.3"
+  }
+}

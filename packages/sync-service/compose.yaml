@@ -1,0 +1,31 @@
+services:
+  database:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: monitor
+      POSTGRES_DB: personal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a database password}
+    volumes: ["personal_pg:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monitor -d personal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  sync:
+    build:
+      context: ../..
+      dockerfile: packages/sync-service/Dockerfile
+    environment:
+      PERSONAL_DATABASE_URL: postgresql://monitor:${POSTGRES_PASSWORD}@database:5432/personal
+      SYNC_OWNER_TOKEN: ${SYNC_OWNER_TOKEN:?Set an independent owner recovery secret}
+      SYNC_HOST: 0.0.0.0
+      SYNC_TLS_CERT: /certs/fullchain.pem
+      SYNC_TLS_KEY: /certs/privkey.pem
+      SYNC_ALLOWED_ORIGINS: ${SYNC_ALLOWED_ORIGINS:-https://sync.example.invalid}
+    volumes: ["${SYNC_CERT_DIR:?Set certificate directory}:/certs:ro"]
+    ports: ["4321:4321"]
+    depends_on:
+      database:
+        condition: service_healthy
+volumes:
+  personal_pg:

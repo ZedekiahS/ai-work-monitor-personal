@@ -1,0 +1,15 @@
+node_modules/
+dist/
+release/
+.data/
+work/
+.env
+.env.*
+!.env.example
+*.sqlite*
+*.log
+# Local observations and machine-specific configuration are never source artifacts.
+ui/evidence/
+docs/hooks.preview.json
+docs/evidence/real-runtime.json
+*.zip
