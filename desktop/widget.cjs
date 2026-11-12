@@ -18,6 +18,7 @@ function validatePreferences(value) {
   for (const key of ["visible", "pinned", "collapsed"]) {
     if (typeof value[key] === "boolean") next[key] = value[key];
   }
+  if (typeof value.motion === "boolean") next.motion = value.motion;
   for (const key of ["quotaKey"]) {
     if (typeof value[key] === "string" && value[key].length <= 2048)
       next[key] = value[key];
@@ -63,6 +64,7 @@ function createWidget({
   showMonitor,
   isQuitting,
   reportError,
+  pageUrl,
 }) {
   const { BrowserWindow, ipcMain, screen } = electron;
   const file = path.join(userData, "usage-widget.json");
@@ -82,6 +84,13 @@ function createWidget({
   let window = null;
   let moving = null;
   let drag = null;
+  const documentUrl = new URL(pageUrl || base + "/");
+  const trusted = (event) =>
+    [window?.webContents, monitor()?.webContents].includes(event.sender) &&
+    event.senderFrame &&
+    event.senderFrame === event.sender.mainFrame &&
+    new URL(event.senderFrame.url).origin === documentUrl.origin &&
+    new URL(event.senderFrame.url).pathname === documentUrl.pathname;
   const save = (next) => {
     const validated = validatePreferences(next);
     fs.mkdirSync(userData, { recursive: true });
@@ -128,7 +137,12 @@ function createWidget({
       });
       window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
       window.webContents.on("will-navigate", (event, url) => {
-        if (new URL(url).origin !== base) event.preventDefault();
+        const target = new URL(url);
+        if (
+          target.origin !== documentUrl.origin ||
+          target.pathname !== documentUrl.pathname
+        )
+          event.preventDefault();
       });
       window.on("move", () => {
         clearTimeout(moving);
@@ -152,7 +166,9 @@ function createWidget({
           }
         }
       });
-      await window.loadURL(base + "/?view=widget&launch=" + launchToken);
+      await window.loadURL(
+        pageUrl || base + "/?view=widget&launch=" + launchToken,
+      );
     }
     window.show();
     window.setAlwaysOnTop(
@@ -170,14 +186,7 @@ function createWidget({
   }
   async function command(event, action, value) {
     // Only our authenticated local document's main frame may control desktop windows.
-    if (
-      ![window?.webContents, monitor()?.webContents].includes(event.sender) ||
-      !event.senderFrame ||
-      event.senderFrame !== event.sender.mainFrame ||
-      new URL(event.senderFrame.url).origin !== base ||
-      new URL(event.senderFrame.url).pathname !== "/"
-    )
-      throw Error("无法从此页面操作浮窗");
+    if (!trusted(event)) throw Error("无法从此页面操作浮窗");
     switch (action) {
       case "dragStart":
       case "dragMove":
@@ -219,6 +228,7 @@ function createWidget({
       case "hide":
         return hide();
       case "monitor":
+        if (!showMonitor) throw Error("此产品仅提供额度查询");
         if (
           !["overview", "live", "accounts", "settings", "usage"].includes(value)
         )
@@ -227,6 +237,7 @@ function createWidget({
         return state();
       case "pinned":
       case "collapsed":
+      case "motion":
         if (typeof value !== "boolean") throw Error("无效的浮窗设置");
         drag = null;
         save({ ...preferences, [action]: value });
@@ -264,6 +275,7 @@ function createWidget({
     show,
     hide,
     state,
+    trusted,
     close: () => {
       drag = null;
       clearTimeout(moving);

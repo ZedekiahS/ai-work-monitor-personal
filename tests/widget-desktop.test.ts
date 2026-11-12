@@ -23,6 +23,7 @@ for (const content of ["null", "{broken", "[]", "42"]) {
         fs.writeFileSync(path.join(dir, file), "unchanged-test-data");
       const errors: string[] = [];
       const options = {
+        base: "http://127.0.0.1:4318",
         electron: { screen, ipcMain: { handle() {} } },
         userData: dir,
         reportError: (code: string) => errors.push(code),

@@ -1,0 +1,30 @@
+.no-motion .quota-orb * {
+  animation: none !important;
+  transition: none !important;
+}
+.quota-settings {
+  margin: 14px 0;
+  border-top: 1px solid var(--quota-border);
+  padding-top: 10px;
+}
+.quota-settings label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 9px 0;
+  font-size: 12px;
+}
+.quota-settings input {
+  accent-color: #92dec3;
+}
+.quota-settings input[type="range"] {
+  width: 110px;
+}
+.quota-widget p {
+  margin: 8px 0;
+}
+.widget-body {
+  scrollbar-width: thin;
+  scrollbar-color: #37564a transparent;
+}
