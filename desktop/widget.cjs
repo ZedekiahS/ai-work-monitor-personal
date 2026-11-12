@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { randomUUID } = require("node:crypto");
 
 const defaults = {
   visible: false,
@@ -9,6 +10,8 @@ const defaults = {
   quotaKey: "",
 };
 function validatePreferences(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new TypeError("Invalid widget preferences object");
   const next = { ...defaults };
   if (typeof value?.scale === "number" && Number.isFinite(value.scale))
     next.scale = Math.max(0.7, Math.min(1.5, value.scale));
@@ -63,11 +66,22 @@ function createWidget({
 }) {
   const { BrowserWindow, ipcMain, screen } = electron;
   const file = path.join(userData, "usage-widget.json");
-  let preferences = fs.existsSync(file)
-    ? validatePreferences(JSON.parse(fs.readFileSync(file, "utf8")))
-    : { ...defaults };
+  let preferences = { ...defaults };
+  if (fs.existsSync(file)) {
+    // Read errors are not corrupt JSON; never overwrite an unreadable file.
+    const content = fs.readFileSync(file, "utf8");
+    try {
+      preferences = validatePreferences(JSON.parse(content));
+    } catch (error) {
+      if (!(error instanceof SyntaxError || error instanceof TypeError))
+        throw error;
+      fs.renameSync(file, file + ".corrupt-" + randomUUID());
+      reportError("WIDGET_PREFERENCES_RECOVERED");
+    }
+  }
   let window = null;
   let moving = null;
+  let drag = null;
   const save = (next) => {
     const validated = validatePreferences(next);
     fs.mkdirSync(userData, { recursive: true });
@@ -120,6 +134,10 @@ function createWidget({
         clearTimeout(moving);
         moving = setTimeout(persistPosition, 350);
       });
+      window.on("blur", () => {
+        drag = null;
+        persistPosition();
+      });
       window.on("close", (event) => {
         if (!isQuitting()) {
           event.preventDefault();
@@ -145,6 +163,7 @@ function createWidget({
     return state();
   }
   function hide() {
+    drag = null;
     save({ ...preferences, visible: false });
     window?.hide();
     return state();
@@ -160,6 +179,39 @@ function createWidget({
     )
       throw Error("无法从此页面操作浮窗");
     switch (action) {
+      case "dragStart":
+      case "dragMove":
+      case "dragEnd": {
+        if (
+          !window ||
+          event.sender !== window.webContents ||
+          !preferences.collapsed
+        )
+          throw Error("请从水球拖动窗口");
+        if (action === "dragStart") {
+          drag = {
+            cursor: screen.getCursorScreenPoint(),
+            bounds: window.getBounds(),
+          };
+        } else if (action === "dragMove" && drag) {
+          const point = screen.getCursorScreenPoint();
+          window.setBounds(
+            windowBounds(
+              {
+                ...preferences,
+                x: drag.bounds.x + point.x - drag.cursor.x,
+                y: drag.bounds.y + point.y - drag.cursor.y,
+              },
+              screen,
+            ),
+          );
+        } else if (action === "dragEnd") {
+          drag = null;
+          clearTimeout(moving);
+          persistPosition();
+        }
+        return state();
+      }
       case "state":
         return state();
       case "show":
@@ -176,6 +228,7 @@ function createWidget({
       case "pinned":
       case "collapsed":
         if (typeof value !== "boolean") throw Error("无效的浮窗设置");
+        drag = null;
         save({ ...preferences, [action]: value });
         if (window && !window.isDestroyed()) {
           window.setAlwaysOnTop(
@@ -212,6 +265,7 @@ function createWidget({
     hide,
     state,
     close: () => {
+      drag = null;
       clearTimeout(moving);
       persistPosition();
     },

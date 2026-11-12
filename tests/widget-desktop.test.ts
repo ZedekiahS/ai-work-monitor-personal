@@ -13,6 +13,55 @@ const screen = {
   getPrimaryDisplay: () => ({ workArea: area }),
   getDisplayNearestPoint: () => ({ workArea: area }),
 };
+
+for (const content of ["null", "{broken", "[]", "42"]) {
+  test(`invalid widget preferences recover without touching product data: ${content}`, () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aiwm-widget-recovery-"));
+    try {
+      fs.writeFileSync(path.join(dir, "usage-widget.json"), content);
+      for (const file of ["monitor.sqlite", "credential-key.dpapi"])
+        fs.writeFileSync(path.join(dir, file), "unchanged-test-data");
+      const errors: string[] = [];
+      const options = {
+        electron: { screen, ipcMain: { handle() {} } },
+        userData: dir,
+        reportError: (code: string) => errors.push(code),
+      };
+      const widget = createWidget(options);
+      assert.deepEqual(widget.state(), {
+        visible: false,
+        pinned: true,
+        collapsed: true,
+        scale: 1,
+        quotaKey: "",
+      });
+      const backups = fs
+        .readdirSync(dir)
+        .filter((name) => name.startsWith("usage-widget.json.corrupt-"));
+      assert.equal(backups.length, 1);
+      assert.equal(
+        fs.readFileSync(path.join(dir, backups[0]), "utf8"),
+        content,
+      );
+      assert.deepEqual(errors, ["WIDGET_PREFERENCES_RECOVERED"]);
+      createWidget(options);
+      assert.equal(
+        fs
+          .readdirSync(dir)
+          .filter((name) => name.startsWith("usage-widget.json.corrupt-"))
+          .length,
+        1,
+      );
+      for (const file of ["monitor.sqlite", "credential-key.dpapi"])
+        assert.equal(
+          fs.readFileSync(path.join(dir, file), "utf8"),
+          "unchanged-test-data",
+        );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}
 test("widget returns to visible work area after monitor disconnect", () => {
   const bounds = windowBounds({ x: 4000, y: -300, collapsed: false }, screen);
   assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 1280);
@@ -24,6 +73,7 @@ test("native widget shares one window, persists choices, and rejects foreign and
   let command: any;
   let opened = "";
   let quitting = false;
+  let cursor = { x: 400, y: 200 };
   class Window extends EventEmitter {
     webContents = {
       mainFrame: { url: "http://127.0.0.1:4318/?view=widget" },
@@ -70,7 +120,7 @@ test("native widget shares one window, persists choices, and rejects foreign and
     const widget = createWidget({
       electron: {
         BrowserWindow: Window,
-        screen,
+        screen: { ...screen, getCursorScreenPoint: () => cursor },
         ipcMain: { handle: (_name: string, cb: any) => (command = cb) },
       },
       base: "http://127.0.0.1:4318",
@@ -87,6 +137,7 @@ test("native widget shares one window, persists choices, and rejects foreign and
     await widget.show();
     assert.equal(windows.length, 1);
     const w = windows[0];
+    assert.equal(w.pinned, true);
     assert.equal(w.bounds.transparent, true);
     assert.equal(w.level, "screen-saver");
     const trusted = {
@@ -107,6 +158,21 @@ test("native widget shares one window, persists choices, and rejects foreign and
     assert.equal(w.pinned, false);
     await command(trusted, "collapsed", true);
     assert.equal(w.bounds.height, 112);
+    const original = { ...w.bounds };
+    await command(trusted, "dragStart");
+    cursor = { x: 350, y: 230 };
+    await command(trusted, "dragMove");
+    assert.equal(w.bounds.x, original.x - 50);
+    assert.equal(w.bounds.y, original.y + 30);
+    await command(trusted, "dragEnd");
+    assert.equal(
+      JSON.parse(fs.readFileSync(path.join(dir, "usage-widget.json"), "utf8"))
+        .x,
+      original.x - 50,
+    );
+    cursor = { x: 100, y: 100 };
+    await command(trusted, "dragMove");
+    assert.equal(w.bounds.x, original.x - 50);
     await command(trusted, "scale", 0.7);
     assert.equal(w.bounds.width, 78);
     await assert.rejects(command(trusted, "scale", 0.1));

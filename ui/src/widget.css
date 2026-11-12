@@ -28,7 +28,7 @@ body.widget-mode #root {
   width: 112px;
   height: 112px;
   padding: 4px;
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
 }
 .quota-orb {
   width: 104px;
@@ -134,7 +134,9 @@ body.widget-mode #root {
 }
 .orb-open {
   position: absolute;
-  inset: 20px;
+  inset: 4px;
+  border-radius: 50%;
+  touch-action: none;
   border: 0;
   padding: 0;
   background: transparent;
@@ -161,6 +163,20 @@ body.widget-mode #root {
 .orb-open span {
   font-size: 10px;
   white-space: nowrap;
+}
+.orb-open .orb-identity {
+  max-width: 65px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #c8e6d8;
+  font-size: 9px;
+}
+.is-held .orb-open {
+  cursor: grabbing;
+}
+.is-held .orb-shell {
+  stroke-opacity: 1;
+  stroke-width: 2;
 }
 .orb-open:focus-visible {
   outline: 1px solid #d3ffec;
@@ -236,7 +252,11 @@ body.widget-mode #root {
   padding: 0;
   font-size: 19px;
 }
-.widget-controls button[aria-pressed="true"] {
+.widget-controls button[role="switch"] {
+  width: 64px;
+  font-size: 12px;
+}
+.widget-controls button[aria-checked="true"] {
   color: #a9f1d2;
   background: #284638;
 }

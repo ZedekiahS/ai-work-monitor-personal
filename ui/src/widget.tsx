@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   relativeTime,
   mutate,
@@ -48,19 +48,57 @@ export function QuotaOrb({
   label,
   onExpand,
   unknownLabel = "待更新",
+  identity = "",
+  tooltip,
+  onDrag,
 }: {
   remaining: number | null;
   label: string;
   onExpand: () => void;
   unknownLabel?: string;
+  identity?: string;
+  tooltip?: string;
+  onDrag?: (action: "dragStart" | "dragMove" | "dragEnd") => void;
 }) {
+  const [holding, setHolding] = useState(false);
+  const gesture = useRef<{
+    id: number;
+    held: boolean;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
+  const suppressClick = useRef(false);
+  const dragCallback = useRef(onDrag);
+  dragCallback.current = onDrag;
+  const finish = () => {
+    const current = gesture.current;
+    if (!current) return;
+    clearTimeout(current.timer);
+    gesture.current = null;
+    if (current.held) dragCallback.current?.("dragEnd");
+    setHolding(false);
+  };
+  useEffect(() => {
+    const cancel = () => {
+      suppressClick.current = true;
+      finish();
+    };
+    if (typeof window !== "undefined") window.addEventListener("blur", cancel);
+    return () => {
+      if (typeof window !== "undefined")
+        window.removeEventListener("blur", cancel);
+      const current = gesture.current;
+      if (current) {
+        clearTimeout(current.timer);
+        if (current.held) dragCallback.current?.("dragEnd");
+      }
+    };
+  }, []);
   const id = useId().replace(/:/g, "");
   const level =
     remaining === null ? null : Math.max(0, Math.min(100, remaining));
   return (
     <div
-      className={`quota-orb ${level === null ? "is-unknown" : ""} ${level !== null && level <= 15 ? "is-low" : ""}`}
-      title="拖动球的边缘移动；点击中间展开"
+      className={`quota-orb ${holding ? "is-held" : ""} ${level === null ? "is-unknown" : ""} ${level !== null && level <= 15 ? "is-low" : ""}`}
     >
       <svg viewBox="0 0 100 100" aria-hidden="true">
         <defs>
@@ -125,8 +163,40 @@ export function QuotaOrb({
       </svg>
       <button
         className="orb-open"
-        aria-label={`展开额度详情，${label}，${level !== null ? level + "% 剩余" : "额度待更新"}`}
-        onClick={onExpand}
+        title={(tooltip ? tooltip + "\n" : "") + "点击查看详情；长按拖动"}
+        aria-label={`展开额度详情，${identity}，${label}，${level !== null ? level + "% 剩余" : "额度待更新"}`}
+        onPointerDown={(e) => {
+          if (e.button !== 0 || gesture.current || !onDrag) return;
+          suppressClick.current = false;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          const current = {
+            id: e.pointerId,
+            held: false,
+            timer: setTimeout(() => {
+              current.held = true;
+              suppressClick.current = true;
+              setHolding(true);
+              dragCallback.current?.("dragStart");
+            }, 350),
+          };
+          gesture.current = current;
+        }}
+        onPointerMove={(e) => {
+          if (gesture.current?.id === e.pointerId && gesture.current.held)
+            onDrag?.("dragMove");
+        }}
+        onPointerUp={(e) => {
+          if (gesture.current?.id === e.pointerId) finish();
+        }}
+        onPointerCancel={() => {
+          suppressClick.current = true;
+          finish();
+        }}
+        onLostPointerCapture={finish}
+        onClick={(e) => {
+          if (e.detail === 0 || !suppressClick.current) onExpand();
+          suppressClick.current = false;
+        }}
       >
         <strong>
           {level !== null ? (
@@ -139,6 +209,7 @@ export function QuotaOrb({
           )}
         </strong>
         <span>{level !== null ? label : unknownLabel}</span>
+        {identity && <span className="orb-identity">{identity}</span>}
       </button>
     </div>
   );
@@ -184,10 +255,12 @@ export function WidgetView({
     ? quotas.filter((q) => widgetAccountKey(q) === widgetAccountKey(selected))
     : [];
   const label = (q: Quota) =>
-    accountName(
-      q.accountId,
-      accounts?.accounts.find((a) => a.id === q.accountId)?.label,
-    ) +
+    (unbound(q)
+      ? "账号待确认"
+      : accountName(
+          q.accountId,
+          accounts?.accounts.find((a) => a.id === q.accountId)?.label,
+        )) +
     (unbound(q)
       ? " · " +
         (overview?.sources.find((s) => s.id === q.sourceId)?.label ??
@@ -205,6 +278,23 @@ export function WidgetView({
         <QuotaOrb
           remaining={remaining}
           label={orbLabel}
+          identity={
+            selected
+              ? unbound(selected)
+                ? "账号待确认"
+                : accountName(
+                    selected.accountId,
+                    accounts?.accounts.find((a) => a.id === selected.accountId)
+                      ?.label,
+                  )
+              : ""
+          }
+          tooltip={
+            selected
+              ? `${label(selected)} · ${selected.pool} · ${quotaWindow(selected.window)} · ${relativeTime(selected.observedAt)}更新`
+              : "尚未选择可用额度"
+          }
+          onDrag={(action) => onCommand(action)}
           unknownLabel={!selected && quotas.length > 0 ? "选账号" : "待更新"}
           onExpand={() => onCommand("collapsed", false)}
         />
@@ -226,11 +316,12 @@ export function WidgetView({
         <strong>额度水球</strong>
         <div className="widget-controls">
           <button
-            aria-label={preferences.pinned ? "取消置顶" : "置顶"}
-            aria-pressed={preferences.pinned}
+            role="switch"
+            aria-label="始终置顶"
+            aria-checked={preferences.pinned}
             onClick={() => onCommand("pinned", !preferences.pinned)}
           >
-            ⌖
+            置顶 {preferences.pinned ? "开" : "关"}
           </button>
           <button
             aria-label="缩成水球"
@@ -392,10 +483,6 @@ export function UsageWidget() {
   useEffect(() => {
     document.body.classList.add("widget-mode");
     document.documentElement.classList.add("widget-mode");
-    const visibility = () =>
-      document.body.classList.toggle("widget-hidden", document.hidden);
-    document.addEventListener("visibilitychange", visibility);
-    visibility();
     document.title = "AI 额度水球";
     const bridge = desktopBridge();
     bridge
@@ -408,19 +495,35 @@ export function UsageWidget() {
       setRevision((v) => v + 1);
       setNow(Date.now());
     };
-    const events = new EventSource("/api/events", { withCredentials: true });
-    events.onmessage = () => {
-      if (!debounce)
-        debounce = setTimeout(() => {
-          debounce = null;
-          refresh();
-        }, 500);
-    };
-    const timer = setInterval(refresh, 5000);
-    return () => {
-      events.close();
-      clearInterval(timer);
+    let events: EventSource | null = null;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const stop = () => {
+      events?.close();
+      events = null;
+      if (timer) clearInterval(timer);
+      timer = null;
       if (debounce) clearTimeout(debounce);
+      debounce = null;
+    };
+    const visibility = () => {
+      document.body.classList.toggle("widget-hidden", document.hidden);
+      stop();
+      if (document.hidden) return;
+      refresh();
+      events = new EventSource("/api/events", { withCredentials: true });
+      events.onmessage = () => {
+        if (!document.hidden && !debounce)
+          debounce = setTimeout(() => {
+            debounce = null;
+            if (!document.hidden) refresh();
+          }, 500);
+      };
+      timer = setInterval(refresh, 5000);
+    };
+    document.addEventListener("visibilitychange", visibility);
+    visibility();
+    return () => {
+      stop();
       unsubscribe?.();
       document.body.classList.remove("widget-mode");
       document.documentElement.classList.remove("widget-mode");

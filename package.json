@@ -1,6 +1,6 @@
 {
   "name": "ai-work-monitor",
-  "version": "0.2.0-candidate.6",
+  "version": "0.2.0-candidate.7",
   "private": true,
   "type": "module",
   "engines": {
@@ -82,7 +82,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "installerIcon": "desktop/assets/icon.ico",
-      "uninstallerIcon": "desktop/assets/icon.ico"
+      "uninstallerIcon": "desktop/assets/icon.ico",
+      "deleteAppDataOnUninstall": false
     },
     "win": {
       "target": "nsis",
