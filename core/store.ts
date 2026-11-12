@@ -724,6 +724,7 @@ export class Store {
     const active = sessions.filter(
       (s) =>
         ["running", "waiting_user", "waiting_approval"].includes(s.state) ||
+        (s.state === "unknown" && ["waiting_user", "waiting_approval"].includes(s.lastState)) ||
         (s.state === "failed" && s.updatedAt >= day),
     );
     const selected = new Set(active.map((s) => s.id)),
@@ -744,7 +745,7 @@ export class Store {
       mainCount: active.filter((s) => s.relation !== "spawn").length,
       childCount: active.filter((s) => s.relation === "spawn").length,
       waitingCount: active.filter(
-        (s) => s.state === "waiting_user" || s.state === "waiting_approval",
+        (s) => ["waiting_user", "waiting_approval"].includes(s.state === "unknown" ? s.lastState : s.state),
       ).length,
       failedCount: active.filter((s) => s.state === "failed").length,
       unknownCount: sessions.filter((s) => s.state === "unknown").length,

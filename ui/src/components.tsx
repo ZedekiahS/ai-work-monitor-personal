@@ -234,7 +234,9 @@ export function StateBadge({
   const terminal = ["completed", "failed", "cancelled"].includes(session.state);
   const fresh = terminal || session.freshness === "fresh";
   const inferred = session.evidence === "inferred";
-  const label = stateNames[session.state] || session.state;
+  const label = !fresh && session.state === "unknown" && session.lastState !== "unknown"
+    ? `待确认 · 上次：${stateNames[session.lastState] || session.lastState}`
+    : stateNames[session.state] || session.state;
   return (
     <span
       className={`badge state-${session.state} ${!fresh ? "muted" : ""}`}

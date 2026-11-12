@@ -107,6 +107,12 @@ test(
         302,
       );
       const exported = await request("/api/export");
+      const widgetLaunch = await fetch(base + "/?launch=" + key + "&view=widget", { redirect: "manual" });
+      assert.equal(widgetLaunch.status, 302);
+      assert.equal(widgetLaunch.headers.get("location"), "/?view=widget");
+      assert.ok(widgetLaunch.headers.get("set-cookie")?.includes("HttpOnly"));
+      assert.equal((await fetch(base + "/?launch=wrong&view=widget", { redirect: "manual" })).status, 401);
+      assert.equal((await fetch(base + "/?launch=" + key + "&view=https://evil.example", { redirect: "manual" })).headers.get("location"), "/");
       assert.equal(
         JSON.stringify(exported).includes("Sensitive private prompt"),
         false,

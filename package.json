@@ -1,6 +1,6 @@
 {
   "name": "ai-work-monitor",
-  "version": "0.2.0-candidate.5",
+  "version": "0.2.0-candidate.6",
   "private": true,
   "type": "module",
   "engines": {
@@ -24,7 +24,9 @@
     "test:personal-sync": "powershell -NoProfile -File packages/sync-service/test-local.ps1",
     "test:ui": "tsx --test ui/*.test.tsx",
     "repair:history": "tsx scripts/history-recovery.ts",
-    "desktop:prepare": "install-electron"
+    "desktop:prepare": "install-electron",
+    "desktop:widget": "electron desktop/widget-main.cjs",
+    "package:widget": "npm run build && node scripts/prepare-runtime.mjs && electron-builder --win nsis --config build/widget.config.cjs"
   },
   "dependencies": {
     "@ai-work-monitor/sync-protocol": "file:packages/sync-protocol",
@@ -53,7 +55,7 @@
       "output": "release"
     },
     "files": [
-      "desktop/main.cjs",
+      "desktop/*.cjs",
       "desktop/assets/**",
       "dist/core/**",
       "dist/collector/**",

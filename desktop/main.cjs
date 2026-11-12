@@ -14,6 +14,15 @@ const path = require("node:path");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
 const net = require("node:net");
+const { createWidget } = require("./widget.cjs");
+const requestedView =
+  process.env.AIWM_DEFAULT_VIEW === "widget" ||
+  process.argv?.includes("--widget")
+    ? "widget"
+    : "monitor";
+let pendingView = requestedView,
+  widget,
+  openMonitor;
 let win,
   tray,
   child,
@@ -48,16 +57,18 @@ if (process.platform === "win32")
 const appIcon = path.join(__dirname, "assets", "icon.ico");
 if (process.env.AIWM_USER_DATA_DIR)
   app.setPath("userData", path.resolve(process.env.AIWM_USER_DATA_DIR));
-const ownsSingleInstanceLock = app.requestSingleInstanceLock();
+else
+  app.setPath("userData", path.join(app.getPath("appData"), "ai-work-monitor"));
+const ownsSingleInstanceLock = app.requestSingleInstanceLock({
+  view: requestedView,
+});
 if (!ownsSingleInstanceLock) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.show();
-      win.focus();
-    }
+  app.on("second-instance", (_event, _argv, _cwd, data) => {
+    pendingView = data?.view === "widget" ? "widget" : "monitor";
+    const opening = pendingView === "widget" ? widget?.show() : openMonitor?.();
+    opening?.catch(() => recordStartupFailure("WINDOW_OPEN_FAILED"));
   });
 }
 async function freePort() {
@@ -198,40 +209,67 @@ ready
       showStartupFailure();
       return;
     }
-    win = new BrowserWindow({
-      width: 1440,
-      height: 940,
-      minWidth: 900,
-      minHeight: 640,
-      title: "AI Work Monitor",
-      icon: appIcon,
-      backgroundColor: "#0b1114",
-      autoHideMenuBar: true,
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-      },
-    });
-    win.webContents.setWindowOpenHandler(({ url }) => {
-      if (
-        /^https:\/\/(github\.com|learn\.chatgpt\.com|developers\.openai\.com)\//.test(
-          url,
-        )
-      )
-        void shell.openExternal(url);
-      return { action: "deny" };
-    });
-    win.webContents.on("will-navigate", (event, url) => {
-      if (new URL(url).origin !== base) event.preventDefault();
-    });
-    win.on("close", (event) => {
-      if (!quitting) {
-        event.preventDefault();
-        win.hide();
+    openMonitor = async (page = "overview") => {
+      if (win) {
+        if (win.isMinimized()) win.restore();
+        win.show();
+        win.focus();
+        if (page !== "overview")
+          await win.loadURL(base + "/?launch=" + launchToken + "#" + page);
+        return;
       }
+      win = new BrowserWindow({
+        width: 1440,
+        height: 940,
+        minWidth: 900,
+        minHeight: 640,
+        title: "AI Work Monitor",
+        icon: appIcon,
+        backgroundColor: "#0b1114",
+        autoHideMenuBar: true,
+        webPreferences: {
+          preload: path.join(__dirname, "preload.cjs"),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
+      });
+      win.webContents.setWindowOpenHandler(({ url }) => {
+        if (
+          /^https:\/\/(github\.com|learn\.chatgpt\.com|developers\.openai\.com)\//.test(
+            url,
+          )
+        )
+          void shell.openExternal(url);
+        return { action: "deny" };
+      });
+      win.webContents.on("will-navigate", (event, url) => {
+        if (new URL(url).origin !== base) event.preventDefault();
+      });
+      win.on("close", (event) => {
+        if (!quitting) {
+          event.preventDefault();
+          win.hide();
+        }
+      });
+      await win.loadURL(base + "/?launch=" + launchToken + "#" + page);
+    };
+    widget = createWidget({
+      electron: require("electron"),
+      base,
+      launchToken,
+      userData: app.getPath("userData"),
+      icon: appIcon,
+      monitor: () => win,
+      showMonitor: openMonitor,
+      isQuitting: () => quitting,
+      reportError: recordStartupFailure,
     });
-    await win.loadURL(base + "/?launch=" + launchToken);
+    if (pendingView === "widget") await widget.show();
+    else {
+      await openMonitor();
+      if (widget.state().visible) await widget.show();
+    }
     const icon = nativeImage
       .createFromPath(path.join(__dirname, "assets", "icon.png"))
       .resize({ width: 32, height: 32 });
@@ -239,7 +277,20 @@ ready
     tray.setToolTip("AI Work Monitor · 关闭窗口后继续本机采集");
     tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: "打开监控台", click: () => win.show() },
+        {
+          label: "打开监控台",
+          click: () =>
+            openMonitor().catch(() =>
+              recordStartupFailure("WINDOW_OPEN_FAILED"),
+            ),
+        },
+        {
+          label: "显示用量浮窗",
+          click: () =>
+            widget
+              .show()
+              .catch(() => recordStartupFailure("WIDGET_OPEN_FAILED")),
+        },
         {
           label: "登录时启动（可选）",
           type: "checkbox",
@@ -257,7 +308,11 @@ ready
         },
       ]),
     );
-    tray.on("double-click", () => win.show());
+    tray.on("double-click", () =>
+      (requestedView === "widget" ? widget.show() : openMonitor()).catch(() =>
+        recordStartupFailure("WINDOW_OPEN_FAILED"),
+      ),
+    );
     const shown = new Set();
     setInterval(async () => {
       try {
@@ -295,6 +350,7 @@ ready
 let collectorStopping = false;
 app.on("before-quit", (event) => {
   quitting = true;
+  widget?.close();
   if (
     child &&
     !collectorSpawnFailed &&

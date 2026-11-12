@@ -1,0 +1,348 @@
+html.widget-mode,
+body.widget-mode {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+body.widget-mode #root {
+  min-height: 0;
+}
+.widget-orb-stage,
+.quota-widget {
+  --water-top: #a3efd5;
+  --water-deep: #246f60;
+  --quota-ink: #e7f4ed;
+  --quota-muted: #a4bdb0;
+  --quota-border: #2d493d;
+  color: var(--quota-ink);
+  font:
+    13px/1.45 "Segoe UI",
+    system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
+}
+.widget-orb-stage {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  padding: 4px;
+  -webkit-app-region: drag;
+}
+.quota-orb {
+  width: 104px;
+  height: 104px;
+  position: relative;
+  user-select: none;
+}
+.quota-orb svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.orb-shell {
+  stroke: #89c5b0;
+  stroke-opacity: 0.48;
+  stroke-width: 1;
+}
+.orb-glint {
+  fill: none;
+  stroke: #dbffed;
+  stroke-width: 2.2;
+  opacity: 0.6;
+  stroke-linecap: round;
+}
+.orb-glint-bottom {
+  fill: none;
+  stroke: #b4f6dc;
+  stroke-width: 1;
+  opacity: 0.28;
+  stroke-linecap: round;
+}
+.orb-level {
+  transition: transform 700ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.orb-wave-front {
+  animation: orb-wave-forward 7s linear infinite;
+}
+.orb-wave-back {
+  opacity: 0.45;
+  animation: orb-wave-backward 11s linear infinite;
+}
+.orb-bubble {
+  fill: none;
+  stroke: #e1fff1;
+  stroke-width: 0.7;
+  opacity: 0;
+  animation: orb-bubble-rise 6s ease-in-out infinite;
+}
+.orb-bubble-two {
+  animation-delay: 3s;
+  animation-duration: 8s;
+}
+@keyframes orb-wave-forward {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100px);
+  }
+}
+@keyframes orb-wave-backward {
+  from {
+    transform: translateX(-100px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes orb-bubble-rise {
+  0%,
+  10% {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.6;
+  }
+  85%,
+  100% {
+    transform: translateY(-18px);
+    opacity: 0;
+  }
+}
+.widget-hidden .quota-orb * {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .quota-orb * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.orb-unknown-ring {
+  fill: none;
+  stroke: #a4bdb0;
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
+  opacity: 0.5;
+}
+.quota-orb.is-low {
+  --water-top: #e8c981;
+  --water-deep: #9a6837;
+}
+.orb-open {
+  position: absolute;
+  inset: 20px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #f1fff9;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: no-drag;
+  text-shadow: 0 1px 4px #06150f;
+  font: inherit;
+}
+.orb-open strong {
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -1px;
+}
+.orb-open small {
+  font-size: 13px;
+  letter-spacing: 0;
+}
+.orb-open span {
+  font-size: 10px;
+  white-space: nowrap;
+}
+.orb-open:focus-visible {
+  outline: 1px solid #d3ffec;
+  border-radius: 50%;
+}
+.orb-alert {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  border: 1px solid #d7bc7e;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  background: #352b18;
+  color: #f5dfad;
+  -webkit-app-region: no-drag;
+  cursor: pointer;
+}
+.quota-widget {
+  width: 340px;
+  height: 420px;
+  border: 1px solid var(--quota-border);
+  border-radius: 20px;
+  overflow: hidden;
+  background: #0b1713;
+}
+.widget-titlebar {
+  display: flex;
+  height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 0 16px;
+  background: #14251e;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+.widget-controls {
+  display: flex;
+  gap: 4px;
+}
+.quota-widget button,
+.quota-widget select {
+  -webkit-app-region: no-drag;
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--quota-border);
+  border-radius: 8px;
+  background: #14251e;
+  cursor: pointer;
+}
+.quota-widget button {
+  padding: 6px 10px;
+}
+.quota-widget button:hover {
+  background: #213b2f;
+}
+.quota-widget button:active {
+  background: #294b3b;
+}
+.quota-widget button:focus-visible,
+.quota-widget select:focus-visible {
+  outline: 2px solid #a9f1d2;
+  outline-offset: 1px;
+}
+.quota-widget button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.widget-controls button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  padding: 0;
+  font-size: 19px;
+}
+.widget-controls button[aria-pressed="true"] {
+  color: #a9f1d2;
+  background: #284638;
+}
+.widget-body {
+  height: 374px;
+  overflow: auto;
+  padding: 12px 16px;
+  box-sizing: border-box;
+}
+.widget-account-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--quota-muted);
+  font-size: 12px;
+}
+.quota-widget select {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  padding: 6px;
+  text-overflow: ellipsis;
+  background: #0a130f;
+}
+.widget-balances {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+.quota-widget .quota-balance {
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  background: transparent;
+}
+.quota-widget .quota-balance.selected {
+  border-color: #689782;
+  background: #14261e;
+}
+.quota-balance-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.quota-balance-top strong {
+  color: #b8f2d9;
+  font-size: 23px;
+  font-weight: 650;
+}
+.quota-balance-top small {
+  font-size: 10px;
+  font-weight: 400;
+}
+.quota-meter {
+  display: block;
+  height: 4px;
+  margin: 8px 0;
+  border-radius: 4px;
+  background: #314238;
+  overflow: hidden;
+}
+.quota-meter > span {
+  display: block;
+  height: 100%;
+  background: #8dd4b6;
+}
+.quota-meter.unknown {
+  background: repeating-linear-gradient(
+    90deg,
+    #53675a 0 3px,
+    transparent 3px 8px
+  );
+}
+.quota-balance-meta,
+.widget-muted {
+  font-size: 11px;
+  color: var(--quota-muted);
+}
+.quota-widget p {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.widget-warning {
+  font-size: 12px;
+  color: #edc888;
+}
+.widget-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 12px;
+}
+.widget-size > span:first-child {
+  margin-right: auto;
+  color: var(--quota-muted);
+}
+.widget-size button {
+  width: 28px;
+  padding: 2px;
+}
+.quota-widget footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+}

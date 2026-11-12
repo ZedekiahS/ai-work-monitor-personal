@@ -24,6 +24,8 @@ async function runStartup(
     portOccupied?: boolean;
     secondInstance?: boolean;
     minimized?: boolean;
+    widgetDefault?: boolean;
+    widgetSecond?: boolean;
   } = {},
 ) {
   const actions: string[] = [];
@@ -104,6 +106,7 @@ async function runStartup(
   let faultDelivered = false;
   const context = {
     require(name: string) {
+      if (name === "./widget.cjs") return { createWidget: () => ({ state: () => ({ visible: false }), show: async () => { actions.push("widget:show"); }, close() {} }) };
       if (name === "electron")
         return {
           app,
@@ -168,6 +171,7 @@ async function runStartup(
         LOCALAPPDATA:
           options.localAppData ?? "C:\\Users\\tester\\AppData\\Local",
         PRIVATE_ENV_DO_NOT_LOG: "PRIVATE_SECRET_DO_NOT_LOG",
+        AIWM_DEFAULT_VIEW: options.widgetDefault ? "widget" : "monitor",
       },
     },
     __dirname: "C:\\Product\\resources\\app\\desktop",
@@ -213,7 +217,7 @@ async function runStartup(
   // before inspecting the outcome instead of treating it as a harness error.
   await startup.catch(() => {});
   await Promise.resolve();
-  if (options.secondInstance) app.emit("second-instance");
+  if (options.secondInstance) app.emit("second-instance", {}, [], "", { view: options.widgetSecond ? "widget" : "monitor" });
   return { actions, errors, writes, readyRegistrations };
 }
 
@@ -226,6 +230,19 @@ for (const portOccupied of [false, true]) {
     assert.equal(result.errors.length, 0);
   });
 }
+
+test("standalone widget starts only the shared collector and floating window; Monitor reuses it", async () => {
+  const result = await runStartup({ widgetDefault: true, secondInstance: true });
+  assert.equal(result.actions.filter(v => v === 'spawn').length, 1);
+  assert.equal(result.actions.filter(v => v === 'widget:show').length, 1);
+  assert.equal(result.actions.filter(v => v === 'window:new').length, 1, 'Monitor window is created only when second instance requests it');
+});
+test("widget request to running Monitor opens widget without another collector", async () => {
+  const result = await runStartup({ secondInstance: true, widgetSecond: true });
+  assert.equal(result.actions.filter(v => v === 'spawn').length, 1);
+  assert.equal(result.actions.filter(v => v === 'window:new').length, 1);
+  assert.equal(result.actions.filter(v => v === 'widget:show').length, 1);
+});
 
 for (const minimized of [false, true]) {
   test(`existing ${minimized ? "minimized" : "visible"} window receives second-instance and regains focus`, async () => {

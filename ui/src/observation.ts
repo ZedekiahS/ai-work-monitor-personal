@@ -75,6 +75,13 @@ export function quotasForOverview(quotas: Quota[], now = Date.now()) {
 }
 
 const terminal = new Set(["completed", "failed", "cancelled"]);
+/** Historical evidence is not a claim that a task is currently running. */
+export function observedState(session: Pick<Session, "state" | "lastState">) {
+  return session.state === "unknown" ? session.lastState : session.state;
+}
+export function needsAttention(session: Pick<Session, "state" | "lastState">) {
+  return ["waiting_user", "waiting_approval", "failed"].includes(observedState(session));
+}
 /** A failed observer must never keep a cached nonterminal claim current. */
 export function sessionForView(session: Session, unavailable = false): Session {
   if (!unavailable) return session;

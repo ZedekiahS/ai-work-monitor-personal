@@ -1,6 +1,7 @@
 import { QuotaSources } from "./quota-source";
 import {
   sessionForView,
+  needsAttention,
   quotaWindow,
   quotasForOverview,
   quotaRemaining,
@@ -45,6 +46,7 @@ import {
 } from "./components";
 import { AgentTree } from "./sessions";
 import { PersonalSyncPage, SyncStatus } from "./sync";
+import { desktopBridge } from "./desktop";
 
 type PageProps = {
   revision: number;
@@ -70,9 +72,7 @@ export function OverviewPage({
   const activity = (d?.activity?.items || []).map((s) =>
     sessionForView(s, !!o.error),
   );
-  const pending = activity.filter((s) =>
-    ["waiting_user", "waiting_approval", "failed"].includes(s.state),
-  );
+  const pending = activity.filter(needsAttention);
   const running = activity.filter((s) => s.state === "running");
   const runningIds = new Set(running.map((s) => s.id));
   for (const s of running) {
@@ -129,6 +129,7 @@ export function OverviewPage({
         <div>
           <h1>总览</h1>
         </div>
+        {desktopBridge() && <Button onClick={() => desktopBridge()!.widget("show").catch(() => notify("浮窗未能打开，请重试。", true))}>用量浮窗</Button>}
         <button
           className={`collector-summary ${issues.length || o.error ? "amber" : ""}`}
           onClick={() => onNavigate("settings")}
@@ -1254,6 +1255,7 @@ export function SettingsPage({
         <div>
           <h1>设置</h1>
         </div>
+        {desktopBridge() && <Button onClick={() => desktopBridge()!.widget("show").catch(() => notify("浮窗未能打开，请重试。", true))}>打开用量浮窗</Button>}
         <Button
           icon="refresh"
           disabled={!!busy}

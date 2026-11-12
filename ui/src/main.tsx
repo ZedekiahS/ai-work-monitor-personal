@@ -13,6 +13,8 @@ import { SessionBrowser, SessionDetail } from "./sessions";
 import { AccountsPage, OverviewPage, SettingsPage, UsagePage } from "./pages";
 import { EmployeeConnector } from "./sync";
 import "./styles.css";
+import { UsageWidget } from "./widget";
+import "./widget.css";
 
 const navigation = [
   { id: "overview", title: "总览" },
@@ -386,7 +388,7 @@ class ErrorBoundary extends React.Component<
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      {new URLSearchParams(location.search).get("view") === "widget" ? <UsageWidget /> : <App />}
     </ErrorBoundary>
   </React.StrictMode>,
 );

@@ -278,7 +278,7 @@ const server = http.createServer(async (req, res) => {
     }
     res.writeHead(302, {
       "Set-Cookie": `aiwm=${launchToken}; HttpOnly; SameSite=Strict; Path=/`,
-      Location: "/",
+      Location: url.searchParams.get("view") === "widget" ? "/?view=widget" : "/",
     });
     res.end();
     return;
