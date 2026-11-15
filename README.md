@@ -10,6 +10,8 @@
 
 默认透明、置顶的小水球显示账号剩余额度，可拖动、缩放和展开详情。额度来自现有只读查询，未知和过期不冒充 0%。监控台内可一键打开，也可用独立安装入口。见 [使用与来源说明](docs/USAGE_WIDGET.md) 和 [本轮验收边界](docs/WIDGET_ACCEPTANCE.md)。
 
+只需要余额和小窗设置时，另有 [Windows 原生额度窗 0.2.0-native.1](apps/quota-native/README.md)：C#/WPF，依赖系统 .NET Framework 4.8，不捆绑 Electron，不启动监控台、历史采集或同步服务。它与上面的完整监控台入口、旧 Electron 纯余额版分别构建，独立保存窗口偏好。
+
 ## 构建与运行
 
 Windows x64，Node.js 24+：

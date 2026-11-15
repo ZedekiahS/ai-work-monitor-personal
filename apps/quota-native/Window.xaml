@@ -1,0 +1,57 @@
+<!-- Wave paths adapted from CW12138/codex-quota-orb (MIT), fixed source and license in THIRD_PARTY_NOTICES.md. -->
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="AI 额度窗" Width="112" Height="112" WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent" ShowInTaskbar="True" Topmost="True" FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="13" Foreground="#EDF8F5">
+ <Window.Resources>
+  <Style TargetType="Button">
+   <Setter Property="Background" Value="#253A3B"/><Setter Property="Foreground" Value="#EDF8F5"/>
+   <Setter Property="Padding" Value="12,8"/><Setter Property="Margin" Value="0,0,6,0"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+    <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="8" BorderBrush="#506C70" BorderThickness="0"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/></Border>
+    <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="#3C5757"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Surface" Property="BorderThickness" Value="2"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="#476966"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+ </Window.Resources>
+ <StackPanel>
+  <Viewbox x:Name="OrbBox" Width="112" Height="112" HorizontalAlignment="Left">
+   <Grid x:Name="Orb" Width="112" Height="112" Background="Transparent" Focusable="True" Cursor="Hand" ToolTip="点击查看余额 · 长按拖动" AutomationProperties.Name="余额水球，点击展开，长按拖动">
+    <Grid Margin="6">
+     <Grid.Clip><EllipseGeometry Center="50,50" RadiusX="49" RadiusY="49"/></Grid.Clip>
+     <Ellipse><Ellipse.Fill><RadialGradientBrush GradientOrigin="0.3,0.2" Center="0.4,0.3" RadiusX="0.8" RadiusY="0.8"><GradientStop Color="#E538555B" Offset="0"/><GradientStop Color="#F016292E" Offset="1"/></RadialGradientBrush></Ellipse.Fill></Ellipse>
+     <Canvas x:Name="Water">
+      <Path x:Name="BackWave" Opacity="0.52" Fill="#7ADBCB" Data="M -90,12 C -70,1 -50,1 -30,12 C -10,23 10,23 30,12 C 50,1 70,1 90,12 C 110,23 130,23 150,12 C 170,1 190,1 210,12 C 230,23 250,23 270,12 L 270,160 L -90,160 Z"/>
+      <Path x:Name="FrontWave" Stroke="#84ECDB" StrokeThickness="0.8" Data="M -90,10 C -70,20 -50,20 -30,10 C -10,0 10,0 30,10 C 50,20 70,20 90,10 C 110,0 130,0 150,10 C 170,20 190,20 210,10 C 230,0 250,0 270,10 L 270,160 L -90,160 Z">
+       <Path.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#38AD9B" Offset="0"/><GradientStop Color="#145B68" Offset="1"/></LinearGradientBrush></Path.Fill>
+      </Path>
+     </Canvas>
+     <Ellipse StrokeThickness="1.5"><Ellipse.Stroke><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#BBEBFFF5" Offset="0"/><GradientStop Color="#126EC2CF" Offset="0.5"/><GradientStop Color="#8592E3D3" Offset="1"/></LinearGradientBrush></Ellipse.Stroke></Ellipse>
+     <Ellipse Width="44" Height="12" VerticalAlignment="Top" Margin="0,9,12,0" Fill="#20FFFFFF"/>
+     <StackPanel VerticalAlignment="Center" IsHitTestVisible="False">
+      <TextBlock x:Name="Percent" Text="?" FontFamily="Segoe UI" FontSize="29" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+      <TextBlock x:Name="OrbLabel" Text="剩余额度" FontSize="10" Foreground="#D8ECE8" HorizontalAlignment="Center"/>
+     </StackPanel>
+    </Grid>
+   </Grid>
+  </Viewbox>
+  <Border x:Name="Details" Visibility="Collapsed" Background="#F51A292E" BorderBrush="#415D63" BorderThickness="1" CornerRadius="16" Padding="16" Margin="6,2,6,6" Width="284" HorizontalAlignment="Left">
+   <StackPanel>
+    <TextBlock Text="剩余额度" FontSize="18" FontWeight="SemiBold"/>
+    <TextBlock x:Name="Account" Foreground="#B3CBC8" Margin="0,4,0,12" TextWrapping="Wrap"/>
+    <ComboBox x:Name="Windows" MinHeight="32" MaxDropDownHeight="240" Margin="0,0,0,10" AutomationProperties.Name="额度窗口"/>
+    <TextBlock x:Name="Reset" Foreground="#D3E4E1" TextWrapping="Wrap"/>
+    <TextBlock x:Name="Status" Foreground="#A8C9C3" TextWrapping="Wrap" Margin="0,6,0,8"/>
+    <TextBlock x:Name="SaveStatus" Foreground="#FFD19D" TextWrapping="Wrap"/>
+    <StackPanel Orientation="Horizontal" Margin="0,8,0,8">
+     <CheckBox x:Name="Pinned" Content="置顶" Foreground="#EDF8F5" Padding="4" Margin="0,0,20,0"/>
+     <CheckBox x:Name="Motion" Content="动态效果" Foreground="#EDF8F5" Padding="4"/>
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+     <TextBlock Text="大小" VerticalAlignment="Center" Margin="0,0,12,0"/>
+     <Button x:Name="Smaller" Content="−" AutomationProperties.Name="缩小"/>
+     <TextBlock x:Name="SizeLabel" Text="100%" Width="50" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,6,0"/>
+     <Button x:Name="Larger" Content="＋" AutomationProperties.Name="放大"/>
+    </StackPanel>
+    <StackPanel Orientation="Horizontal"><Button x:Name="Refresh" Content="刷新"/><Button x:Name="Collapse" Content="收起"/><Button x:Name="Hide" Content="隐藏"/></StackPanel>
+   </StackPanel>
+  </Border>
+ </StackPanel>
+</Window>
