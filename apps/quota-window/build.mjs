@@ -10,7 +10,7 @@ function run(exe, args) {
 run(process.execPath, [
   "node_modules/typescript/bin/tsc",
   "-p",
-  "tsconfig.json",
+  "apps/quota-window/tsconfig.collector.json",
 ]);
 run(process.execPath, [
   "node_modules/vite/bin/vite.js",
@@ -34,7 +34,7 @@ copy("desktop/widget.cjs", "widget.cjs");
 copy("desktop/assets/icon.png", "icon.png");
 copy("desktop/assets/icon.ico", "icon.ico");
 for (const name of ["quota-only.js", "quota-wire.js"])
-  copy("dist/collector/" + name, "collector/" + name);
+  copy("work/quota-only-collector/collector/" + name, "collector/" + name);
 fs.cpSync("work/quota-only-ui", path.join(out, "ui"), { recursive: true });
 for (const name of ["LICENSE", "third_party/codex-usage-desktop-LICENSE"])
   copy(name, name);

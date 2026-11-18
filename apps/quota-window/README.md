@@ -8,16 +8,20 @@
 
 需本机 Codex 已安装并登录；账号切换在 Codex 完成。本产品不处理登录或保存凭据，不保证读取所有订阅窗口。多个额度池/窗口分别显示，不相加。
 
-## 构建
+## 单独构建 Windows 安装包
 
-在个人仓库根目录安装依赖后：
+在 Windows x64 安装 Node.js 24 或更高版本，然后在仓库根目录运行以下命令。构建只编译余额窗界面和额度读取模块。
 
-```
-node apps/quota-window/build.mjs
+```powershell
+npm ci
 node apps/quota-window/build.mjs --package
 ```
 
-安装器位于 `release/quota-only/AI.Quota.Window.Setup.0.1.0.exe`。显式文件清单只包含纯余额入口、额度协议、水球UI、图标及许可证。使用 Electron 自带运行时，不再捆绑 Monitor 的独立 Node 服务。旧的 AI Usage Window candidate.7 属于集成入口，不等于本产品。
+安装器位于 `release/quota-only/AI.Quota.Window.Setup.0.1.0.exe`。只想看余额的用户运行这一个文件即可，前提是本机 Codex 已登录。安装包自带 Electron 运行时，安装和运行均独立于平台。开发时去掉 `--package` 即可只构建应用。
+
+## 发布独立版本
+
+额度窗使用自己的版本号和 GitHub Release 标签，格式为 `quota-window-v<版本号>`。发布时在对应 Release 附上该版本的 Windows 安装器和 SHA-256 校验文件，并从项目首页链接到这个具体版本。这样即使平台随后发布新版，额度窗的下载入口也能继续使用。
 
 ## 验收边界
 

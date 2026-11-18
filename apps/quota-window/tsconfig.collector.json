@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../work/quota-only-collector"
+  },
+  "include": ["../../collector/quota-only.ts"]
+}
