@@ -209,13 +209,12 @@ ready
       showStartupFailure();
       return;
     }
-    openMonitor = async (page = "overview") => {
+    openMonitor = async (page) => {
       if (win) {
         if (win.isMinimized()) win.restore();
         win.show();
         win.focus();
-        if (page !== "overview")
-          await win.loadURL(base + "/?launch=" + launchToken + "#" + page);
+        if (page) await win.loadURL(base + "/#" + page);
         return;
       }
       win = new BrowserWindow({
@@ -252,7 +251,7 @@ ready
           win.hide();
         }
       });
-      await win.loadURL(base + "/?launch=" + launchToken + "#" + page);
+      await win.loadURL(base + "/?launch=" + launchToken + "#" + (page || "home"));
     };
     widget = createWidget({
       electron: require("electron"),
@@ -278,7 +277,7 @@ ready
     tray.setContextMenu(
       Menu.buildFromTemplate([
         {
-          label: "打开监控台",
+          label: "打开主窗口",
           click: () =>
             openMonitor().catch(() =>
               recordStartupFailure("WINDOW_OPEN_FAILED"),

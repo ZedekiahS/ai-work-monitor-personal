@@ -26,9 +26,12 @@ async function runStartup(
     minimized?: boolean;
     widgetDefault?: boolean;
     widgetSecond?: boolean;
+    widgetPage?: string;
   } = {},
 ) {
   const actions: string[] = [];
+  const openedPages: string[] = [];
+  let openFromWidget: ((page: string) => Promise<void>) | undefined;
   const errors: { title: string; message: string }[] = [];
   const writes: { file: string; value: string }[] = [];
   let readyRegistrations = 0;
@@ -64,7 +67,8 @@ async function runStartup(
       super();
       actions.push("window:new");
     }
-    async loadURL() {
+    async loadURL(url: string) {
+      openedPages.push(new URL(url).hash);
       actions.push("window:load");
     }
     show() {
@@ -106,7 +110,12 @@ async function runStartup(
   let faultDelivered = false;
   const context = {
     require(name: string) {
-      if (name === "./widget.cjs") return { createWidget: () => ({ state: () => ({ visible: false }), show: async () => { actions.push("widget:show"); }, close() {} }) };
+      if (name === "./widget.cjs") return {
+        createWidget: ({ showMonitor }: { showMonitor: (page: string) => Promise<void> }) => {
+          openFromWidget = showMonitor;
+          return { state: () => ({ visible: false }), show: async () => { actions.push("widget:show"); }, close() {} };
+        },
+      };
       if (name === "electron")
         return {
           app,
@@ -218,8 +227,16 @@ async function runStartup(
   await startup.catch(() => {});
   await Promise.resolve();
   if (options.secondInstance) app.emit("second-instance", {}, [], "", { view: options.widgetSecond ? "widget" : "monitor" });
-  return { actions, errors, writes, readyRegistrations };
+  if (options.widgetPage) await openFromWidget?.(options.widgetPage);
+  return { actions, openedPages, errors, writes, readyRegistrations };
 }
+
+test("desktop starts at My Tools and a widget shortcut opens the requested Monitor page", async () => {
+  const normal = await runStartup({ secondInstance: true, widgetPage: "overview" });
+  assert.deepEqual(normal.openedPages, ["#home", "#overview"]);
+  const floating = await runStartup({ widgetDefault: true, widgetPage: "live" });
+  assert.deepEqual(floating.openedPages, ["#live"]);
+});
 
 for (const portOccupied of [false, true]) {
   test(`duplicate launch with ${portOccupied ? "occupied" : "free"} port quits without scheduling startup or touching collector data`, async () => {

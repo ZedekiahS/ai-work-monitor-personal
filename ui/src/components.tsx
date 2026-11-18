@@ -14,6 +14,20 @@ import {
 } from "./api";
 
 const paths: Record<string, ReactNode> = {
+  tools: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </>
+  ),
+  environment: (
+    <>
+      <path d="M4 4h2m4 0h2v5a4 4 0 0 1-8 0V4Zm4 9v2a5 5 0 0 0 10 0v-2" />
+      <circle cx="18" cy="10" r="2.5" />
+    </>
+  ),
   overview: (
     <>
       <path d="M3 11l9-8 9 8" />

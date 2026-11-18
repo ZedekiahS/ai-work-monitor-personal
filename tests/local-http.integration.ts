@@ -59,6 +59,7 @@ test(
           ...process.env,
           AIWM_DATA_DIR: path.join(dir, "monitor"),
           CODEX_HOME: source,
+          CODEX_CLI_PATH: path.join(dir, "missing-test-cli.exe"),
           AIWM_QUOTA_DISABLED: "1",
           AIWM_PORT: String(port),
           AIWM_LAUNCH_TOKEN: key,
@@ -93,6 +94,29 @@ test(
         await delay(100);
       }
       assert.equal(ready, true);
+      const local = (await request("/api/sources")).data.sources[0];
+      const check = (sourceId: string) => request("/api/environment/source-check", "POST", { sourceId });
+      const inspected = await check(local.id);
+      assert.equal(inspected.status, 200);
+      assert.equal(inspected.data.sessions, "found");
+      assert.equal(inspected.data.latest, at);
+      assert.equal(inspected.data.cli.status, "missing");
+      assert.equal(JSON.stringify(inspected.data).includes("Sensitive private prompt"), false);
+      assert.equal((await check(source)).status, 404);
+      const machine = await request("/api/environment/source-check", "POST", {});
+      assert.equal(machine.status, 200);
+      assert.equal(machine.data.sourceId, null);
+      assert.equal(machine.data.cli.status, "missing");
+      assert.equal(machine.data.hooks.status, "off");
+      assert.equal("directory" in machine.data || "latest" in machine.data, false);
+      const second = path.join(dir, "empty-source");
+      fs.mkdirSync(second);
+      const other = await request("/api/sources", "POST", { path: second, label: "Empty" });
+      const empty = await check(other.data.id);
+      assert.equal(empty.data.sourceId, other.data.id);
+      assert.equal(empty.data.latest, null);
+      assert.equal(empty.data.sessions, "missing");
+      assert.deepEqual((await request("/api/environment/codex-doctor", "POST")).data, { state: "missing" });
       assert.equal((await fetch(base + "/api/overview")).status, 401);
       assert.equal(
         (
@@ -118,6 +142,24 @@ test(
         false,
       );
       assert.equal(JSON.stringify(exported).includes("private-project"), false);
+      const original = (await request("/api/settings")).data;
+      const save = (body: unknown) => request("/api/settings", "POST", body);
+      const simultaneous = await Promise.all([12, 20].map(quotaThreshold => save({
+        notifications: { ...original.notifications, quotaThreshold },
+        expected: { notifications: original.notifications },
+      })));
+      assert.deepEqual(simultaneous.map(result => result.status).sort(), [200, 409]);
+      const winner = simultaneous.find(result => result.status === 200)!.data.notifications;
+      assert.equal((await save({
+        pollMs: 2000, notifications: original.notifications,
+        expected: { pollMs: original.pollMs, notifications: original.notifications },
+      })).status, 409);
+      const afterConflict = (await request("/api/settings")).data;
+      assert.deepEqual(afterConflict.notifications, winner);
+      assert.equal(afterConflict.pollMs, original.pollMs);
+      assert.equal((await save({ pollMs: 2000, expected: { pollMs: original.pollMs } })).status, 200);
+      assert.equal((await save({ pollMs: 3000, expected: { hooksEnabled: false } })).status, 400);
+      assert.equal((await save({ pollMs: original.pollMs, notifications: original.notifications })).status, 200);
       assert.equal((await request("/api/settings")).data.hooksEnabled, false);
       await request("/api/settings", "POST", { hooksEnabled: true });
       assert.equal((await request("/api/settings")).data.hooks.enabled, true);

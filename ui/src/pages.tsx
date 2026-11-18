@@ -9,9 +9,12 @@ import {
   sourceHealth,
   sourceKind,
 } from "./observation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { PreferenceControls } from "./preference-controls";
+import { changedPreferences, guardPreferencePatch, preferencePatch, preferencesOf, previewPreferences } from "./preferences";
 import {
   api,
+  ApiError,
   compact,
   relativeTime,
   date,
@@ -98,6 +101,8 @@ export function OverviewPage({
         (s.health !== "scanning" &&
           (!s.lastScanAt || Date.now() - Date.parse(s.lastScanAt) > 120000)),
     ) || [];
+  const checkSources = () => onNavigate(issues.length === 1
+    ? `environment?source=${encodeURIComponent(issues[0].id)}` : "environment");
   const refreshQuota = async () => {
     setRefreshing(true);
     try {
@@ -132,7 +137,7 @@ export function OverviewPage({
         {desktopBridge() && <Button onClick={() => desktopBridge()!.widget("show").catch(() => notify("浮窗未能打开，请重试。", true))}>用量浮窗</Button>}
         <button
           className={`collector-summary ${issues.length || o.error ? "amber" : ""}`}
-          onClick={() => onNavigate("settings")}
+          onClick={issues.length ? checkSources : () => onNavigate("settings?section=sources")}
         >
           <Icon
             name={
@@ -181,7 +186,7 @@ export function OverviewPage({
                   )
                   .join("；")}
               </span>
-              <Button onClick={() => onNavigate("settings")}>检查来源</Button>
+              <Button onClick={checkSources}>检查来源</Button>
             </div>
           )}
           <SyncStatus
@@ -1165,13 +1170,17 @@ export function SettingsPage({
   revision,
   notify,
   onChanged,
+  showSources = false,
 }: {
   revision: number;
   notify: (text: string, error?: boolean) => void;
   onChanged: () => void;
+  showSources?: boolean;
 }) {
   const r = useResource<Settings>("/api/settings", revision);
-  const [draft, setDraft] = useState<Settings | null>(null),
+  const [edit, setEdit] = useState<{ base: Settings; values: Settings; review?: boolean } | null>(
+    null,
+  ),
     [busy, setBusy] = useState(""),
     [backup, setBackup] = useState(""),
     [restore, setRestore] = useState(""),
@@ -1185,9 +1194,28 @@ export function SettingsPage({
     [confirm, setConfirm] = useState<"rebuild" | "restore" | "history" | null>(
       null,
     );
+  const sourceSection = useRef<HTMLDetailsElement>(null);
+  const draft = r.data && edit
+    ? {
+        ...r.data,
+        pollMs: edit.values.pollMs,
+        staleMs: edit.values.staleMs,
+        notifications: edit.values.notifications,
+      }
+    : r.data;
+  const setDraft = (values: Settings) => {
+    const base = edit?.base ?? r.data;
+    if (!base) return;
+    const changes = changedPreferences(preferencesOf(base), preferencesOf(values));
+    setEdit(changes.length ? { base, values, review: edit?.review } : null);
+  };
+  const ready = !!draft;
   useEffect(() => {
-    if (r.data && !draft) setDraft(r.data);
-  }, [r.data, draft]);
+    if (showSources && ready && sourceSection.current) {
+      sourceSection.current.open = true;
+      sourceSection.current.scrollIntoView?.({ block: "start" });
+    }
+  }, [showSources, ready]);
   const action = async (
     path: string,
     body?: unknown,
@@ -1207,17 +1235,37 @@ export function SettingsPage({
   };
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!draft) return;
-    await action(
-      "/api/settings",
-      {
-        pollMs: Number(draft.pollMs),
-        staleMs: Number(draft.staleMs),
-        notifications: draft.notifications,
-        retentionDays: Number(draft.retentionDays),
-      },
-      "设置已保存",
-    );
+    if (!edit || busy) return;
+    setBusy("/api/settings");
+    try {
+      const base = preferencesOf(edit.base);
+      const edited = preferencesOf(edit.values);
+      const patch = preferencePatch(base, edited, base);
+      try {
+        await mutate("/api/settings", guardPreferencePatch(edit.base, patch));
+      } catch (error) {
+        if (!(error instanceof ApiError && error.status === 409)) throw error;
+        const latest = await api<Settings>("/api/settings");
+        const current = preferencesOf(latest);
+        const values = { ...latest, ...preferencePatch(base, edited, current) };
+        if (changedPreferences(current, preferencesOf(values)).length) {
+          setEdit({ base: latest, values, review: true });
+        } else {
+          setEdit(null);
+          notify("当前设置已与所选偏好一致");
+        }
+        r.refresh();
+        return;
+      }
+      setEdit(null);
+      onChanged();
+      r.refresh();
+      notify("设置已保存");
+    } catch (error) {
+      notify((error as Error).message, true);
+    } finally {
+      setBusy("");
+    }
   };
   const recoverHistory = async (apply: boolean) => {
     if (busy || !historyFile || (apply && !historyPreview?.token)) return;
@@ -1253,7 +1301,7 @@ export function SettingsPage({
     <>
       <div className="page-heading">
         <div>
-          <h1>设置</h1>
+          <h1>监控设置</h1>
         </div>
         {desktopBridge() && <Button onClick={() => desktopBridge()!.widget("show").catch(() => notify("浮窗未能打开，请重试。", true))}>打开用量浮窗</Button>}
         <Button
@@ -1292,7 +1340,7 @@ export function SettingsPage({
                 { hooksEnabled: true },
                 "配置已更新；请在 Codex 确认新增配置的信任",
               );
-              if (out) setDraft(out as Settings);
+              if (out) r.refresh();
             }}
           >
             更新并启用配置
@@ -1313,6 +1361,7 @@ export function SettingsPage({
                   <input
                     type="checkbox"
                     checked={draft.notifications?.enabled || false}
+                    disabled={!!busy}
                     onChange={(e) =>
                       setDraft({
                         ...draft,
@@ -1331,6 +1380,7 @@ export function SettingsPage({
                       <FormField label="免打扰开始（本地时间）">
                         <input
                           type="time"
+                          disabled={!!busy}
                           step={3600}
                           required
                           value={`${String(draft.notifications?.quietStart ?? 22).padStart(2, "0")}:00`}
@@ -1350,6 +1400,7 @@ export function SettingsPage({
                       <FormField label="免打扰结束（本地时间）">
                         <input
                           type="time"
+                          disabled={!!busy}
                           step={3600}
                           required
                           value={`${String(draft.notifications?.quietEnd ?? 8).padStart(2, "0")}:00`}
@@ -1368,9 +1419,11 @@ export function SettingsPage({
                     <FormField label="低额度提醒阈值（剩余 %）">
                       <input
                         type="number"
-                        min={0}
-                        max={100}
-                        value={draft.notifications?.quotaThreshold ?? 10}
+                        min={1}
+                        max={99}
+                        required
+                        disabled={!!busy}
+                        value={draft.notifications?.quotaThreshold ?? 15}
                         onChange={(e) =>
                           setDraft({
                             ...draft,
@@ -1392,7 +1445,8 @@ export function SettingsPage({
                       type="number"
                       min={0.5}
                       max={60}
-                      step={0.5}
+                      disabled={!!busy}
+                      step={0.001}
                       value={draft.pollMs / 1000}
                       onChange={(e) =>
                         setDraft({
@@ -1408,7 +1462,8 @@ export function SettingsPage({
                       type="number"
                       min={5}
                       max={300}
-                      step={1}
+                      disabled={!!busy}
+                      step={0.001}
                       value={draft.staleMs / 1000}
                       onChange={(e) =>
                         setDraft({
@@ -1419,12 +1474,31 @@ export function SettingsPage({
                     />
                   </FormField>
                 </details>
-                <Button type="submit" variant="primary" disabled={!!busy}>
-                  保存设置
+                {edit?.review && (
+                  <section role="status">
+                    <p>设置已在其他窗口更改。请核对以下修改后再保存。</p>
+                    <ul>{previewPreferences(preferencesOf(edit.base), preferencesOf(edit.values)).map(row => (
+                      <li key={row.label}>{row.label}：{row.from} → {row.to}</li>
+                    ))}</ul>
+                  </section>
+                )}
+                <Button type="submit" variant="primary" disabled={!!busy || !edit}>
+                  {edit?.review ? "确认保存" : "保存设置"}
                 </Button>
               </form>
             </Panel>
-            <details className="section-disclosure" id="source-settings">
+            <PreferenceControls
+              busy={!!busy}
+              setBusy={setBusy}
+              dirty={!!edit}
+              notify={notify}
+              onApplied={() => {
+                setEdit(null);
+                r.refresh();
+                onChanged();
+              }}
+            />
+            <details className="section-disclosure" id="source-settings" ref={sourceSection}>
               <summary>采集来源</summary>
               <SourceSettings
                 revision={revision}
@@ -1452,7 +1526,7 @@ export function SettingsPage({
                           ? "配置已准备；首次请在 Codex 确认信任"
                           : "增强实时状态已关闭",
                       );
-                      if (out) setDraft(out as Settings);
+                      if (out) r.refresh();
                     }}
                   />
                   增强实时状态

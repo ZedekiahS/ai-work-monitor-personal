@@ -380,8 +380,10 @@ export function SessionBrowser({
   accounts,
   sources,
   notify,
+  onCheckSource,
 }: {
   live: boolean;
+  onCheckSource: (id: string) => void;
   revision: number;
   onSelect: (id: string) => void;
   accounts: Accounts | null;
@@ -522,6 +524,9 @@ export function SessionBrowser({
               ? `共 ${number(result.data.total)} 个匹配会话`
               : "正在查询"}
           </span>
+          <Button icon="environment" onClick={() => onCheckSource(filters.source)}>
+            检查来源
+          </Button>
           {live && (
             <label className="check">
               <input

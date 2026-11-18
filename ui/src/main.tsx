@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   date,
@@ -12,7 +12,9 @@ import { Button, Empty, ErrorBox, Icon } from "./components";
 import { SessionBrowser, SessionDetail } from "./sessions";
 import { AccountsPage, OverviewPage, SettingsPage, UsagePage } from "./pages";
 import { EmployeeConnector } from "./sync";
+import { EnvironmentPage } from "./environment";
 import "./styles.css";
+import "./platform.css";
 import { UsageWidget } from "./widget";
 import "./widget.css";
 
@@ -22,22 +24,156 @@ const navigation = [
   { id: "usage", title: "用量" },
   { id: "accounts", title: "账号与设备" },
   { id: "company", title: "公司空间" },
-  { id: "settings", title: "设置" },
+  { id: "settings", title: "监控设置" },
 ];
-const validPage = (page: string) =>
-  page === "history" || navigation.some((n) => n.id === page);
+const toolLinks = [
+  { id: "home", title: "我的工具", icon: "tools" },
+  {
+    id: "monitor",
+    title: "AI Monitor",
+    icon: "live",
+    description: "查看 Codex 的任务、额度与用量。",
+  },
+  {
+    id: "environment",
+    title: "环境检查",
+    icon: "environment",
+    description: "检查本机 Codex 和会话采集来源。",
+  },
+] as const;
+const isMonitor = (id: string) =>
+  id === "history" || navigation.some((item) => item.id === id);
+function readRoute(previousMonitor = "") {
+  const hash = location.hash.slice(1);
+  const id = hash.split("?")[0];
+  if (isMonitor(id)) return { tool: "monitor", monitor: hash, hash };
+  return {
+    tool: id === "environment" ? id : "home",
+    monitor: previousMonitor,
+    hash,
+  };
+}
+function navigate(hash: string) {
+  location.hash = hash;
+}
+function MyTools({ monitor }: { monitor: string }) {
+  return (
+    <main className="tool-home" id="main" tabIndex={-1}>
+      <h1>我的工具</h1>
+      <div className="tool-cards">
+        {toolLinks
+          .filter((tool) => tool.id !== "home")
+          .map((tool) => (
+            <a
+              key={tool.id}
+              className={`tool-card tool-${tool.id}`}
+              href={`#${tool.id === "monitor" ? monitor || "overview" : tool.id}`}
+            >
+              <span className="tool-card-icon">
+                <Icon name={tool.icon} size={30} />
+              </span>
+              <h2>{tool.title}</h2>
+              <p>{tool.description}</p>
+              <Icon name="chevron" size={18} />
+            </a>
+          ))}
+      </div>
+    </main>
+  );
+}
+function EnvironmentTool({ hash }: { hash: string }) {
+  const source = useResource<{ sources: Source[] }>("/api/sources");
+  const query = new URLSearchParams(hash.split("?")[1]);
+  const from = query.get("from");
+  const initialSourceId = query.get("source") || "";
+  return (
+    <main id="main" tabIndex={-1}>
+      {source.error && (
+        <ErrorBox message={source.error} onRetry={source.refresh} />
+      )}
+      {!source.data && !source.error && <p role="status">正在读取采集来源…</p>}
+      {source.data && (
+        <EnvironmentPage
+          sources={source.data.sources}
+          initialSourceId={initialSourceId}
+          onReturn={
+            from === "live" || from === "history"
+              ? () => navigate(from)
+              : undefined
+          }
+          onSourceSettings={() => navigate("settings?section=sources")}
+        />
+      )}
+    </main>
+  );
+}
 function App() {
-  const [page, setPage] = useState(() =>
-      validPage(location.hash.slice(1).split("?")[0])
-        ? location.hash.slice(1).split("?")[0]
-        : "overview",
-    ),
-    [revision, setRevision] = useState(0),
+  const [route, setRoute] = useState(() => readRoute());
+  useEffect(() => {
+    const change = () => setRoute((previous) => readRoute(previous.monitor));
+    window.addEventListener("hashchange", change);
+    return () => window.removeEventListener("hashchange", change);
+  }, []);
+  useLayoutEffect(() => {
+    document.getElementById("main")?.focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+    const title =
+      toolLinks.find((tool) => tool.id === route.tool)?.title || "我的工具";
+    document.title =
+      route.tool === "monitor"
+        ? `${navigation.find((item) => item.id === route.monitor.split("?")[0])?.title || "任务"} · AI Monitor`
+        : title;
+  }, [route]);
+  return (
+    <div
+      className={`app-shell platform-shell ${route.tool === "monitor" ? "with-monitor" : ""}`}
+    >
+      <a
+        className="skip-link"
+        href="#main"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("main")?.focus();
+        }}
+      >
+        跳至主要内容
+      </a>
+      <nav className="tool-rail" aria-label="工具导航">
+        {toolLinks.map((tool) => (
+          <a
+            key={tool.id}
+            href={`#${tool.id === "monitor" ? route.monitor || "overview" : tool.id}`}
+            className="tool-link"
+            aria-current={route.tool === tool.id ? "page" : undefined}
+          >
+            <Icon name={tool.icon} size={22} />
+            <span>{tool.title}</span>
+          </a>
+        ))}
+      </nav>
+      {route.tool === "home" && (
+        <div className="platform-content">
+          <MyTools monitor={route.monitor} />
+        </div>
+      )}
+      {route.tool === "environment" && (
+        <div className="platform-content">
+          <EnvironmentTool hash={route.hash} />
+        </div>
+      )}
+      {route.monitor && (
+        <Monitor route={route.monitor} visible={route.tool === "monitor"} />
+      )}
+    </div>
+  );
+}
+function Monitor({ route, visible }: { route: string; visible: boolean }) {
+  const page = route.split("?")[0];
+  const [revision, setRevision] = useState(0),
     [online, setOnline] = useState(false),
     [selected, setSelected] = useState<string | null>(null),
     [toast, setToast] = useState<{ text: string; error: boolean } | null>(null),
-    [notificationsOpen, setNotifications] = useState(false),
-    [mobileNav, setMobileNav] = useState(false);
+    [notificationsOpen, setNotifications] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectionOrigin = useRef<HTMLElement | null>(null);
   const openSession = (id: string) => {
@@ -69,13 +205,13 @@ function App() {
         sessionId?: string;
       }[];
     }>("/api/notifications", revision);
-  const navigate = (id: string) => {
-    setPage(id);
-    location.hash = id;
-    setMobileNav(false);
-    document.getElementById("main")?.focus();
-  };
   useEffect(() => {
+    if (!visible) {
+      setNotifications(false);
+      setSelected(null);
+      return;
+    }
+    refresh();
     let debounce: ReturnType<typeof setTimeout> | null = null;
     const es = new EventSource("/api/events", { withCredentials: true });
     es.onopen = () => setOnline(true);
@@ -93,18 +229,7 @@ function App() {
       clearInterval(fallback);
       if (debounce) clearTimeout(debounce);
     };
-  }, [refresh]);
-  useEffect(() => {
-    const fn = () => {
-      const hash = location.hash.slice(1).split("?")[0];
-      if (validPage(hash)) {
-        setPage(hash);
-        refresh();
-      }
-    };
-    window.addEventListener("hashchange", fn);
-    return () => window.removeEventListener("hashchange", fn);
-  }, []);
+  }, [refresh, visible]);
   const current = navigation.find(
     (n) => n.id === (page === "history" ? "live" : page),
   )!;
@@ -120,75 +245,29 @@ function App() {
   };
   const props = { revision, notify, onChanged: refresh };
   return (
-    <div className="app-shell">
-      <a className="skip-link" href="#main">
-        跳至主要内容
-      </a>
-      <aside className={`sidebar ${mobileNav ? "mobile-open" : ""}`}>
-        <a
-          href="#overview"
-          className="brand"
-          aria-label="AI Work Monitor 总览"
-          onClick={() => navigate("overview")}
-        >
-          <span className="brand-symbol">
-            <Icon name="live" size={27} />
-          </span>
-          <span>
-            <strong>AI Work Monitor</strong>
-            <small>个人工作监控</small>
-          </span>
-        </a>
-        <nav aria-label="主导航">
-          {navigation
-            .filter(
-              (n) =>
-                n.id !== "settings" &&
-                (n.id !== "company" || companyEnabled || page === "company"),
-            )
-            .map((n) => (
-              <button
-                key={n.id}
-                aria-label={n.title}
-                title={n.title}
-                className={`nav-item ${page === n.id || (n.id === "live" && page === "history") ? "active" : ""}`}
-                aria-current={
-                  page === n.id || (n.id === "live" && page === "history")
-                    ? "page"
-                    : undefined
-                }
-                onClick={() => navigate(n.id)}
-              >
-                <Icon name={n.id} />
-                <span>{n.title}</span>
-              </button>
-            ))}
-        </nav>
-        <div className="sidebar-footer">
-          <button
-            className={`nav-item ${page === "settings" ? "active" : ""}`}
-            aria-label="设置"
-            title="设置"
-            aria-current={page === "settings" ? "page" : undefined}
-            onClick={() => navigate("settings")}
-          >
-            <Icon name="settings" />
-            <span>设置</span>
-          </button>
-        </div>
-      </aside>
-      <div className="main-shell">
+    <div className="monitor-workspace" hidden={!visible}>
+      <nav className="monitor-rail" aria-label="Monitor 导航">
+        <strong>AI Monitor</strong>
+        {navigation
+          .filter(
+            (n) => n.id !== "company" || companyEnabled || page === "company",
+          )
+          .map((n) => (
+            <a
+              key={n.id}
+              href={`#${n.id}`}
+              className="monitor-link"
+              aria-current={current.id === n.id ? "page" : undefined}
+            >
+              <Icon name={n.id} size={18} />
+              <span>{n.title}</span>
+            </a>
+          ))}
+      </nav>
+      <div className="platform-content">
         <header className="topbar">
           <div className="breadcrumbs">
-            <button
-              className="icon-button menu-toggle"
-              aria-label={mobileNav ? "收起导航" : "展开导航"}
-              aria-expanded={mobileNav}
-              onClick={() => setMobileNav((v) => !v)}
-            >
-              <Icon name="settings" />
-            </button>
-            <span>个人空间</span>
+            <span>AI Monitor</span>
             <Icon name="chevron" size={12} />
             <strong>{current.title}</strong>
           </div>
@@ -265,7 +344,7 @@ function App() {
             )}
           </section>
         )}
-        <main id="main" tabIndex={-1}>
+        <main id={visible ? "main" : undefined} tabIndex={-1}>
           {account.error && (
             <ErrorBox message={account.error} onRetry={account.refresh} />
           )}
@@ -304,6 +383,11 @@ function App() {
               <SessionBrowser
                 {...props}
                 live={page === "live"}
+                onCheckSource={(id) =>
+                  navigate(
+                    `environment?${new URLSearchParams({ from: page, ...(id ? { source: id } : {}) })}`,
+                  )
+                }
                 onSelect={openSession}
                 accounts={account.data}
                 sources={source.data?.sources || []}
@@ -328,7 +412,15 @@ function App() {
           {page === "company" && (
             <EmployeeConnector {...props} accounts={account.data} />
           )}{" "}
-          {page === "settings" && <SettingsPage {...props} />}
+          {page === "settings" && (
+            <SettingsPage
+              {...props}
+              showSources={
+                new URLSearchParams(route.split("?")[1]).get("section") ===
+                "sources"
+              }
+            />
+          )}
         </main>
       </div>
       {selected && (
@@ -388,7 +480,11 @@ class ErrorBoundary extends React.Component<
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      {new URLSearchParams(location.search).get("view") === "widget" ? <UsageWidget /> : <App />}
+      {new URLSearchParams(location.search).get("view") === "widget" ? (
+        <UsageWidget />
+      ) : (
+        <App />
+      )}
     </ErrorBoundary>
   </React.StrictMode>,
 );

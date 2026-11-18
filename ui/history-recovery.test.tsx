@@ -206,6 +206,55 @@ test("settings displays collection durations in seconds while saving the millise
   });
 });
 
+test("settings keeps the user's edit and shows the competing value before retrying a save", async () => {
+  let savedInterval = 1500;
+  await fixture(
+    async (r, calls) => {
+      const submit = () =>
+        r.root
+          .findByProps({ className: "settings-form" })
+          .props.onSubmit({ preventDefault() {} });
+      const edits = () =>
+        calls
+          .filter((c) => c.url === "/api/settings" && c.body)
+          .map((c) => c.body);
+      await act(async () =>
+        r.root
+          .findByProps({ "aria-label": "刷新间隔（秒）" })
+          .props.onChange({ target: { value: "2.5" } }),
+      );
+      await act(submit);
+      assert.deepEqual(edits(), [{ pollMs: 2500, expected: { pollMs: 1500 } }]);
+      assert.ok(button(r, "确认保存"));
+      assert.match(text(r.toJSON()), /1\.6 秒 → 2\.5 秒/);
+      await act(submit);
+      assert.deepEqual(edits()[1], {
+        pollMs: 2500,
+        expected: { pollMs: 1600 },
+      });
+      assert.equal(savedInterval, 2500);
+    },
+    async (url, body) => {
+      if (url !== "/api/settings") return;
+      if (body && savedInterval === 1500) {
+        savedInterval = 1600;
+        return Response.json(
+          { error: "设置已在其他窗口更改，请重新核对。" },
+          { status: 409 },
+        );
+      }
+      if (body) savedInterval = body.pollMs;
+      return Response.json({
+        pollMs: savedInterval,
+        staleMs: 15000,
+        notifications: { enabled: false },
+        hooks: { enabled: false, status: "off", preview: "", explanation: "" },
+        backups: [],
+      });
+    },
+  );
+});
+
 test("backup options identify local time but retain filenames and restore warns about reconnecting", async () => {
   const timestamp = new Date(2026, 9, 29, 8, 5, 6).getTime();
   const file = `monitor-${timestamp}.sqlite`;

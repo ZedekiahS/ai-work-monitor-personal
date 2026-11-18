@@ -7,17 +7,23 @@ import path from "node:path";
 import os from "node:os";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { DatabaseSync, backup } from "node:sqlite";
 import { Store } from "../core/store.js";
 import { receiveDesktopKey } from "../core/credentials.js";
 import { ExportSnapshots } from "../core/pagination.js";
 import { Collector } from "../collector/collector.js";
 import { SyncClient } from "../collector/sync.js";
-import { configureHooks, hookGate } from "../collector/hook-install.js";
+import {
+  configureHooks,
+  hookGate,
+  installationStatus,
+} from "../collector/hook-install.js";
 import { hookPreview, migrateHookSwitch } from "../collector/hooks.js";
 import { readDatabaseHistory } from "../collector/database-history.js";
 import { execFile } from "node:child_process";
 import { HistoryRecovery } from "./history-recovery.js";
+import { cliPresence, inspectSourceDirectories, runCodexDoctor } from "./environment.js";
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   import.meta.url.includes("/dist/") ? "../.." : "..",
@@ -63,6 +69,7 @@ let revision = 0;
 let maintenance = false;
 const activeApi = new Set<http.ServerResponse>();
 const manualScans = new Set<Promise<unknown>>();
+let doctorRun: ReturnType<typeof runCodexDoctor> | undefined;
 function trackScan(operation: Promise<unknown>) {
   manualScans.add(operation);
   void operation.catch(() => {}).finally(() => manualScans.delete(operation));
@@ -588,6 +595,39 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST") {
       const v = await body(req);
       if (maintenance || shuttingDown) { json(res, 503, { error: "监控服务正在维护或退出，请稍后" }); return; }
+      if (p === "/api/environment/source-check") {
+        const sourceId = v?.sourceId;
+        const source = sourceId === undefined ? undefined : collector.configs().find((item) => item.id === sourceId);
+        if (sourceId !== undefined && !source) {
+          json(res, 404, { error: "此来源已停用或移除，请选择其他来源。" });
+          return;
+        }
+        const [files, cli] = await Promise.all([
+          source ? inspectSourceDirectories(source.path) : null,
+          cliPresence(),
+        ]);
+        const session = source && store.db
+          .prepare("SELECT MAX(updated_at) AS latest FROM sessions WHERE source_id=?")
+          .get(source.id);
+        const hooks = installationStatus(
+          dataDir,
+          store.getSetting<{ hooksEnabled?: boolean }>("preferences", {}).hooksEnabled === true,
+          store.getSetting<string | undefined>("lastHookObservedAt", undefined),
+        );
+        json(res, 200, {
+          sourceId: source?.id ?? null,
+          checkedAt: new Date().toISOString(),
+          ...(files && { ...files, latest: session?.latest ?? null }),
+          cli,
+          hooks: { status: hooks.status, lastEvent: hooks.lastEvent },
+        });
+        return;
+      }
+      if (p === "/api/environment/codex-doctor") {
+        doctorRun ??= runCodexDoctor().finally(() => { doctorRun = undefined; });
+        json(res, 200, await doctorRun);
+        return;
+      }
       if (p === "/api/history-recovery/preview") {
         try { json(res, 200, await historyRecovery.preview(v.file)); }
         catch (error) { throw Error(historyRecovery.reportFailure(error, "preview")); }
@@ -696,6 +736,22 @@ const server = http.createServer(async (req, res) => {
           ...defaults,
           ...store.getSetting<any>("preferences", {}),
         };
+        if (v.expected !== undefined) {
+          const groups = ["pollMs", "staleMs", "notifications"].filter((key) =>
+            Object.hasOwn(v, key),
+          );
+          if (
+            !groups.length || !v.expected || typeof v.expected !== "object" ||
+            Array.isArray(v.expected) || Object.keys(v.expected).length !== groups.length ||
+            !groups.every((key) => Object.hasOwn(v.expected, key))
+          )
+            throw Error("需要提供所改设置的原值。");
+          // Keep this check and the settings write synchronous within the request.
+          if (groups.some((key) => !isDeepStrictEqual(old[key], v.expected[key]))) {
+            json(res, 409, { error: "设置已在其他窗口更改，请重新核对。" });
+            return;
+          }
+        }
         const next = { ...old };
         if (v.pollMs !== undefined)
           next.pollMs = Math.max(
