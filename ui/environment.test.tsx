@@ -29,6 +29,77 @@ const report = (id: string, version: string) =>
     hooks: { status: "off" },
   });
 
+test("all sources requires an explicit choice when two sources are enabled", async (t) => {
+  const checked: string[] = [];
+  const settings: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    assert.equal(url, "/api/environment/source-check");
+    const { sourceId } = JSON.parse(init.body);
+    checked.push(sourceId);
+    return report(sourceId, "1.0.0");
+  });
+  let r!: ReactTestRenderer;
+  await act(async () => {
+    r = create(
+      <EnvironmentPage
+        sources={[source("A"), source("B")]}
+        initialSourceId=""
+        onSourceSettings={(id: string) => settings.push(id)}
+      />,
+    );
+  });
+  t.after(() => act(() => r.unmount()));
+  const select = () => r.root.findByType("select");
+  const button = (label: string) =>
+    r.root.findAllByType("button").find((b) => b.children.includes(label));
+  assert.equal(select().props.value, "");
+  assert.equal(button("检查来源")?.props.disabled ?? true, true);
+  assert.deepEqual(checked, []);
+  await act(() => select().props.onChange({ target: { value: "B" } }));
+  await act(async () => {
+    await button("检查来源")!.props.onClick();
+  });
+  await act(() => {
+    button("来源设置")!.props.onClick();
+  });
+  assert.deepEqual(checked, ["B"]);
+  assert.deepEqual(settings, ["B"]);
+});
+
+test("one active source is selected on entry; an unavailable selection is never replaced", async (t) => {
+  const a = source("A");
+  const b = source("B");
+  const show = (initialSourceId: string, sources: Source[]) => (
+    <EnvironmentPage
+      initialSourceId={initialSourceId}
+      sources={sources}
+      onSourceSettings={() => {}}
+    />
+  );
+  let r!: ReactTestRenderer;
+  await act(() => {
+    r = create(show("", [{ ...a, collectionEnabled: false }, b]));
+  });
+  t.after(() => act(() => r.unmount()));
+  const select = () => r.root.findByType("select");
+  assert.equal(select().props.value, "B");
+  await act(() => r.update(show("", [a])));
+  assert.equal(select().props.value, "B");
+  assert.match(
+    select().findByProps({ value: "B", disabled: true }).children.join(""),
+    /停用或移除/,
+  );
+  assert.ok(
+    !r.root
+      .findAllByType("button")
+      .some((button) => button.children.includes("检查来源")),
+  );
+  await act(() => r.update(show("missing", [a])));
+  assert.equal(select().props.value, "missing");
+  await act(() => select().props.onChange({ target: { value: "A" } }));
+  assert.equal(select().props.value, "A");
+});
+
 test("source checks run on demand and a late result cannot replace a different source", async (t) => {
   const requested: string[] = [];
   let finish!: (response: Response) => void;
@@ -114,5 +185,5 @@ test("without active sources the local check reads only CLI and Hooks on demand"
   const text = JSON.stringify(r.toJSON());
   assert.match(text, /0\.117\.2/);
   assert.match(text, /本机 Monitor Hooks/);
-  assert.doesNotMatch(text, /Monitor 最近收录的会话活动/);
+  assert.doesNotMatch(text, /该来源的最新会话活动/);
 });

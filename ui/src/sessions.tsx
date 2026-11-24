@@ -145,6 +145,9 @@ export function SessionFilters({
               onChange={(e) => set("source", e.target.value)}
             >
               <option value="">全部设备 / 来源</option>
+              {filters.source && !sources.some((s) => s.id === filters.source) && (
+                <option value={filters.source} disabled>原筛选来源</option>
+              )}
               {sources.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.label}
@@ -375,6 +378,7 @@ export function AgentTree({
 
 export function SessionBrowser({
   live,
+  visible,
   revision,
   onSelect,
   accounts,
@@ -383,11 +387,12 @@ export function SessionBrowser({
   onCheckSource,
 }: {
   live: boolean;
+  visible: boolean;
   onCheckSource: (id: string) => void;
   revision: number;
   onSelect: (id: string) => void;
   accounts: Accounts | null;
-  sources: Source[];
+  sources: Source[] | undefined;
   notify: (text: string, error?: boolean) => void;
 }) {
   const [filters, setFilters] = useState<Filters>(emptyFilters),
@@ -397,12 +402,12 @@ export function SessionBrowser({
     [activeOnly, setActiveOnly] = useState(false);
   const query = filterQuery(filters);
   useEffect(() => {
-    if (!paused) setFrozen(revision);
-  }, [revision, paused]);
+    if (visible && (!live || !paused)) setFrozen(revision);
+  }, [revision, live, paused, visible]);
   useEffect(() => setPage(1), [query, live]);
   const history = useResource<List>(
     live ? null : `/api/sessions?${query}&page=${page}&pageSize=30`,
-    live ? frozenRevision : revision,
+    frozenRevision,
   );
   const current = useResource<Overview>(
     live ? "/api/overview" : null,
@@ -446,6 +451,7 @@ export function SessionBrowser({
       )
     : sessions;
   const [exporting, setExporting] = useState(false);
+  const filteredSource = sources?.find((s) => s.id === filters.source);
   const exportFile = async (format: "json" | "csv") => {
     setExporting(true);
     try {
@@ -516,8 +522,15 @@ export function SessionBrowser({
           filters={filters}
           onChange={setFilters}
           accounts={accounts}
-          sources={sources}
+          sources={sources ?? []}
         />
+        {filters.source && sources && (!filteredSource || filteredSource.collectionEnabled === false) && (
+          <p className="notice warning" role="status">
+            {filteredSource
+              ? `“${filteredSource.label}”已停止采集。当前筛选显示该来源保留的任务记录。`
+              : "当前筛选的来源已移除，可在更多筛选中更换来源。"}
+          </p>
+        )}
         <div className="list-summary">
           <span>
             {result.data
@@ -525,7 +538,7 @@ export function SessionBrowser({
               : "正在查询"}
           </span>
           <Button icon="environment" onClick={() => onCheckSource(filters.source)}>
-            检查来源
+            {filters.source ? "检查当前来源" : "检查来源"}
           </Button>
           {live && (
             <label className="check">

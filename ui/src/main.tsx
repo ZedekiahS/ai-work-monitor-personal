@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
 import {
   date,
   mutate,
@@ -13,10 +12,7 @@ import { SessionBrowser, SessionDetail } from "./sessions";
 import { AccountsPage, OverviewPage, SettingsPage, UsagePage } from "./pages";
 import { EmployeeConnector } from "./sync";
 import { EnvironmentPage } from "./environment";
-import "./styles.css";
-import "./platform.css";
 import { UsageWidget } from "./widget";
-import "./widget.css";
 
 const navigation = [
   { id: "overview", title: "总览" },
@@ -56,6 +52,9 @@ function readRoute(previousMonitor = "") {
 function navigate(hash: string) {
   location.hash = hash;
 }
+function taskScope(value: string | null) {
+  return value === "live" || value === "history" ? value : undefined;
+}
 function MyTools({ monitor }: { monitor: string }) {
   return (
     <main className="tool-home" id="main" tabIndex={-1}>
@@ -84,8 +83,20 @@ function MyTools({ monitor }: { monitor: string }) {
 function EnvironmentTool({ hash }: { hash: string }) {
   const source = useResource<{ sources: Source[] }>("/api/sources");
   const query = new URLSearchParams(hash.split("?")[1]);
-  const from = query.get("from");
+  const from = taskScope(query.get("from"));
   const initialSourceId = query.get("source") || "";
+  const openSourceSettings = (sourceId: string) => {
+    const context = new URLSearchParams();
+    if (from) context.set("from", from);
+    if (sourceId) context.set("source", sourceId);
+    // Back from settings should reopen the source chosen in Doctor.
+    const doctorHash = context.size ? `environment?${context}` : "environment";
+    if (hash !== doctorHash) {
+      window.history.replaceState(window.history.state, "", `#${doctorHash}`);
+    }
+    context.set("section", "sources");
+    navigate(`settings?${context}`);
+  };
   return (
     <main id="main" tabIndex={-1}>
       {source.error && (
@@ -96,18 +107,14 @@ function EnvironmentTool({ hash }: { hash: string }) {
         <EnvironmentPage
           sources={source.data.sources}
           initialSourceId={initialSourceId}
-          onReturn={
-            from === "live" || from === "history"
-              ? () => navigate(from)
-              : undefined
-          }
-          onSourceSettings={() => navigate("settings?section=sources")}
+          onReturn={from ? () => navigate(from) : undefined}
+          onSourceSettings={openSourceSettings}
         />
       )}
     </main>
   );
 }
-function App() {
+function Platform() {
   const [route, setRoute] = useState(() => readRoute());
   useEffect(() => {
     const change = () => setRoute((previous) => readRoute(previous.monitor));
@@ -168,7 +175,12 @@ function App() {
   );
 }
 function Monitor({ route, visible }: { route: string; visible: boolean }) {
-  const page = route.split("?")[0];
+  const [page, search] = route.split("?");
+  const query = new URLSearchParams(search);
+  const showSources = page === "settings" && query.get("section") === "sources";
+  const returnToTasks = showSources ? taskScope(query.get("from")) : undefined;
+  // Source settings is part of this task's round trip. Keep its list and page in memory.
+  const tasks = taskScope(page) ?? returnToTasks;
   const [revision, setRevision] = useState(0),
     [online, setOnline] = useState(false),
     [selected, setSelected] = useState<string | null>(null),
@@ -362,19 +374,19 @@ function Monitor({ route, visible }: { route: string; visible: boolean }) {
               accounts={account.data}
             />
           )}{" "}
-          {(page === "live" || page === "history") && (
-            <div>
+          {tasks && (
+            <div hidden={page !== tasks}>
               <div className="task-tabs" role="tablist" aria-label="任务范围">
                 <button
                   role="tab"
-                  aria-selected={page === "live"}
+                  aria-selected={tasks === "live"}
                   onClick={() => navigate("live")}
                 >
                   当前
                 </button>
                 <button
                   role="tab"
-                  aria-selected={page === "history"}
+                  aria-selected={tasks === "history"}
                   onClick={() => navigate("history")}
                 >
                   历史
@@ -382,15 +394,16 @@ function Monitor({ route, visible }: { route: string; visible: boolean }) {
               </div>
               <SessionBrowser
                 {...props}
-                live={page === "live"}
+                live={tasks === "live"}
+                visible={visible && page === tasks}
                 onCheckSource={(id) =>
                   navigate(
-                    `environment?${new URLSearchParams({ from: page, ...(id ? { source: id } : {}) })}`,
+                    `environment?${new URLSearchParams({ from: tasks, ...(id ? { source: id } : {}) })}`,
                   )
                 }
                 onSelect={openSession}
                 accounts={account.data}
-                sources={source.data?.sources || []}
+                sources={source.data?.sources}
               />
             </div>
           )}{" "}
@@ -415,10 +428,9 @@ function Monitor({ route, visible }: { route: string; visible: boolean }) {
           {page === "settings" && (
             <SettingsPage
               {...props}
-              showSources={
-                new URLSearchParams(route.split("?")[1]).get("section") ===
-                "sources"
-              }
+              showSources={visible && showSources}
+              checkedSource={showSources ? query.get("source") ?? undefined : undefined}
+              onReturnToTasks={returnToTasks ? () => navigate(returnToTasks) : undefined}
             />
           )}
         </main>
@@ -477,14 +489,14 @@ class ErrorBoundary extends React.Component<
     );
   }
 }
-createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
+export function App() {
+  return (
     <ErrorBoundary>
       {new URLSearchParams(location.search).get("view") === "widget" ? (
         <UsageWidget />
       ) : (
-        <App />
+        <Platform />
       )}
     </ErrorBoundary>
-  </React.StrictMode>,
-);
+  );
+}

@@ -1171,11 +1171,15 @@ export function SettingsPage({
   notify,
   onChanged,
   showSources = false,
+  checkedSource,
+  onReturnToTasks,
 }: {
   revision: number;
   notify: (text: string, error?: boolean) => void;
   onChanged: () => void;
   showSources?: boolean;
+  checkedSource?: string;
+  onReturnToTasks?: () => void;
 }) {
   const r = useResource<Settings>("/api/settings", revision);
   const [edit, setEdit] = useState<{ base: Settings; values: Settings; review?: boolean } | null>(
@@ -1504,6 +1508,8 @@ export function SettingsPage({
                 revision={revision}
                 notify={notify}
                 onChanged={onChanged}
+                checkedSource={checkedSource}
+                onReturnToTasks={onReturnToTasks}
               />
             </details>
             <details className="section-disclosure">
@@ -1792,7 +1798,9 @@ export function SettingsPage({
     </>
   );
 }
-function SourceSettings({ revision, notify, onChanged }: PageProps) {
+function SourceSettings({
+  revision, notify, onChanged, checkedSource, onReturnToTasks,
+}: PageProps & { checkedSource?: string; onReturnToTasks?: () => void }) {
   const sources = useResource<{ sources: Source[] }>("/api/sources", revision);
   const [label, setLabel] = useState(""),
     [path, setPath] = useState(""),
@@ -1831,6 +1839,7 @@ function SourceSettings({ revision, notify, onChanged }: PageProps) {
     <Panel
       title="采集范围与目录"
       subtitle="自动读取本机 Codex，也可添加其他目录。"
+      action={onReturnToTasks && <Button onClick={onReturnToTasks}>返回 Monitor 任务</Button>}
     >
       {sources.error && (
         <ErrorBox message={sources.error} onRetry={sources.refresh} />
@@ -1851,6 +1860,7 @@ function SourceSettings({ revision, notify, onChanged }: PageProps) {
               <tr key={s.id}>
                 <td>
                   <strong>{s.label}</strong>
+                  {s.id === checkedSource && <span> · 环境检查所选来源</span>}
                   <div className="subline">{s.pathLabel}</div>
                 </td>
                 <td>{sourceKind(s.kind)}</td>

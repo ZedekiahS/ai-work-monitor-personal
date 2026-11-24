@@ -118,18 +118,20 @@ const runCli: RunCli = (args, timeout) => {
 
 export async function cliPresence(run = runCli) {
   const result = await run(["--version"], 5_000);
+  if (result.code === "ENOENT")
+    return { status: "missing", version: null } as const;
+  if (result.code === "timeout")
+    return { status: "timeout", version: null } as const;
+  if (result.code !== 0)
+    return { status: "unavailable", version: null } as const;
   const version = result.stdout
     .trim()
     .match(/^codex(?:-cli)?\s+(\d+(?:\.\d+)+(?:[-+][\w.+-]+)?)$/i)?.[1];
-  if (result.code === 0 && version)
-    return { status: "available", version } as const;
-  return {
-    status: result.code === "ENOENT" ? "missing" : "unavailable",
-    version: null,
-  } as const;
+  if (version) return { status: "available", version } as const;
+  return { status: "unrecognized", version: null } as const;
 }
 
-const categories: Record<string, string> = {
+const categories = {
   auth: "登录",
   background: "后台服务",
   config: "配置",
@@ -144,7 +146,9 @@ const categories: Record<string, string> = {
   security: "安全",
   system: "系统",
   updates: "更新",
-};
+} as const;
+type Category = keyof typeof categories;
+export type DoctorFinding = (typeof categories)[Category] | "其他检查";
 type CheckStatus = "ok" | "warning" | "fail";
 const isStatus = (value: unknown): value is CheckStatus =>
   value === "ok" || value === "warning" || value === "fail";
@@ -166,8 +170,11 @@ export async function runCodexDoctor(run = runCli) {
   if (help.code !== 0) return { state: "failed" } as const;
 
   const result = await run(["doctor", "--json"], 60_000);
+  if (result.code === "ENOENT") return { state: "missing" } as const;
   if (result.code === "timeout") return { state: "timeout" } as const;
   if (result.code !== 0 && result.code !== 1)
+    return { state: "failed" } as const;
+  if (result.code !== 0 && !result.stdout.trim())
     return { state: "failed" } as const;
   try {
     // Only return fixed labels and counts. The raw report can contain local paths and account details.
@@ -183,21 +190,21 @@ export async function runCodexDoctor(run = runCli) {
       typeof report.checks !== "object" ||
       Array.isArray(report.checks)
     )
-      return { state: "failed" } as const;
+      return { state: "incompatible_report" } as const;
     const counts = { ok: 0, warning: 0, fail: 0 };
-    const attention = new Set<string>();
+    const attention = new Set<DoctorFinding>();
     for (const check of Object.values(report.checks) as {
       status?: unknown;
       category?: unknown;
     }[]) {
       if (!check || !isStatus(check.status))
-        return { state: "failed" } as const;
+        return { state: "incompatible_report" } as const;
       counts[check.status]++;
       if (check.status !== "ok")
         attention.add(
           typeof check.category === "string" &&
             Object.hasOwn(categories, check.category)
-            ? categories[check.category]
+            ? categories[check.category as Category]
             : "其他检查",
         );
     }
@@ -207,7 +214,7 @@ export async function runCodexDoctor(run = runCli) {
       report.overallStatus !== overall ||
       (result.code === 1 && overall !== "fail")
     )
-      return { state: "failed" } as const;
+      return { state: "incompatible_report" } as const;
     return {
       state: "complete",
       overall: report.overallStatus,
@@ -215,6 +222,6 @@ export async function runCodexDoctor(run = runCli) {
       attention: [...attention],
     } as const;
   } catch {
-    return { state: "failed" } as const;
+    return { state: "incompatible_report" } as const;
   }
 }

@@ -63,6 +63,11 @@ test("a doctor report with exit 1 retains real findings and drops identifying de
             category: "auth",
             details: { email: "private email" },
           },
+          "private.check.id": {
+            status: "warning",
+            category: "private category",
+            remediation: "private command",
+          },
         },
       }),
     };
@@ -74,8 +79,8 @@ test("a doctor report with exit 1 retains real findings and drops identifying de
   assert.deepEqual(report, {
     state: "complete",
     overall: "fail",
-    counts: { ok: 1, warning: 0, fail: 1 },
-    attention: ["网络"],
+    counts: { ok: 1, warning: 1, fail: 1 },
+    attention: ["网络", "其他检查"],
   });
 });
 
@@ -99,14 +104,40 @@ test("old Codex help, startup failure, timeouts and malformed reports never indi
       { state },
     );
   }
-  assert.deepEqual(
-    await runCodexDoctor(async (args) =>
-      args.includes("--help")
-        ? help
-        : { code: 1, stdout: "garbled", stderr: "" },
-    ),
-    { state: "failed" },
-  );
+  for (const [code, stdout, state] of [
+    [0, "private output", "incompatible_report"],
+    [1, '{"schemaVersion":2,"checks":{}}', "incompatible_report"],
+    [1, "", "failed"],
+    [2, "", "failed"],
+    ["ENOENT", "", "missing"],
+    ["timeout", "", "timeout"],
+  ] as const) {
+    assert.deepEqual(
+      await runCodexDoctor(async (args) =>
+        args.includes("--help")
+          ? help
+          : { code, stdout, stderr: "private path" },
+      ),
+      { state },
+    );
+  }
+});
+
+test("CLI checks distinguish an absent executable, launch failure, timeout and an unknown version format", async () => {
+  for (const [code, stdout, status] of [
+    ["ENOENT", "", "missing"],
+    ["EACCES", "", "unavailable"],
+    ["timeout", "", "timeout"],
+    [0, "private unknown output", "unrecognized"],
+  ] as const) {
+    assert.deepEqual(
+      await cliPresence(async () => ({ code, stdout, stderr: "private path" })),
+      {
+        status,
+        version: null,
+      },
+    );
+  }
   assert.deepEqual(
     await cliPresence(async () => ({
       code: 0,
